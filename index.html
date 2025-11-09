@@ -8,17 +8,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    :root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--accent:#22c55e;--accent2:#60a5fa;--warn:#f59e0b;--danger:#ef4444;--border:#1f2937}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#0b1224,#0f172a);color:var(--text)}
+    :root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--accent:#22c55e;--warn:#f59e0b;--danger:#ef4444;--border:#1f2937}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#0b1224,#0f172a);color:var(--text)}
     .wrap{max-width:1200px;margin:32px auto;padding:0 16px}
-    header{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
-    h1{margin:0;font-size:22px;font-weight:700}
+    header{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:20px}
+    h1{font-size:22px;margin:0;font-weight:700}
     .filters{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;width:100%}
     .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
-    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
     .kpi .value{font-size:28px;font-weight:700}.kpi .label{color:var(--muted);font-size:12px}
     .row{display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin-top:12px}
     .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
@@ -37,188 +37,246 @@
   </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Daily Sales Dashboard</h1>
-    <div class="legend"><span class="dot" style="background:var(--accent)"></span>≥100% <span class="dot" style="background:var(--warn)"></span>80–99% <span class="dot" style="background:var(--danger)"></span><80%</div>
-    <div class="filters card">
-      <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date From</label><input type="date" id="dateFrom"></div>
-      <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date To</label><input type="date" id="dateTo"></div>
-      <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Branch</label><select id="branchFilter"><option value="">All</option></select></div>
-      <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Channel Type</label><select id="typeFilter"><option value="">All</option></select></div>
-      <div style="display:flex;gap:8px;align-items:flex-end"><button id="applyBtn">Apply</button><button id="resetBtn">Reset</button></div>
-    </div>
-  </header>
-
-  <section class="cards">
-    <div class="card kpi"><div class="label">Total Target</div><div id="kpiTarget" class="value">-</div></div>
-    <div class="card kpi"><div class="label">Total Actual</div><div id="kpiActual" class="value">-</div></div>
-    <div class="card kpi"><div class="label">Achievement</div><div id="kpiAchv" class="value">-</div></div>
-    <div class="card kpi"><div class="label">Records</div><div id="kpiRows" class="value">-</div></div>
-  </section>
-
-  <section class="card" style="margin-top:12px">
-    <h3 style="margin:0 0 10px 0">การบรรลุเป้าหมายรายสาขา (Visual Summary)</h3>
-    <div id="branchSummary"></div>
-  </section>
-
-  <div class="row">
-    <section class="card"><h3 style="margin:0 0 10px 0">Achievement ตามประเภทช่องทาง</h3><canvas id="typeChart" height="220"></canvas></section>
-    <section class="card"><h3 style="margin:0 0 10px 0">สรุปภาพรวมรายวัน</h3><canvas id="dailyChart" height="220"></canvas></section>
-  </div>
-
-  <div class="row-2">
-    <section class="card"><h3 style="margin:0 0 10px 0">Achievement แยกตามช่องทาง</h3><canvas id="channelChart" height="240"></canvas></section>
-    <section class="card">
-      <h3 style="margin:0 0 10px 0">ข้อมูล (หลังกรอง)</h3>
-      <div style="overflow:auto;max-height:360px">
-        <table id="dataTable">
-          <thead><tr><th>วันที่</th><th>branch</th><th>channel</th><th>channel_type</th><th>target</th><th>actual</th><th>achievement</th></tr></thead>
-          <tbody></tbody>
-        </table>
+  <div class="wrap">
+    <header>
+      <h1>Daily Sales Dashboard</h1>
+      <div class="legend" title="Target vs Actual">
+        <span class="dot" style="background:var(--accent)"></span>≥100%
+        <span class="dot" style="background:var(--warn)"></span>80–99%
+        <span class="dot" style="background:var(--danger)"></span>&lt;80%
       </div>
-      <div class="footer" id="lastUpdate"></div>
+      <div class="filters card">
+        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date From</label><input type="date" id="dateFrom"></div>
+        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date To</label><input type="date" id="dateTo"></div>
+        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Branch</label><select id="branchFilter"><option value="">All</option></select></div>
+        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Channel Type</label><select id="typeFilter"><option value="">All</option></select></div>
+        <div style="display:flex;gap:8px;align-items:flex-end"><button id="applyBtn">Apply</button><button id="resetBtn">Reset</button></div>
+      </div>
+    </header>
+
+    <section class="cards">
+      <div class="card kpi"><div class="label">Total Target</div><div id="kpiTarget" class="value">-</div></div>
+      <div class="card kpi"><div class="label">Total Actual</div><div id="kpiActual" class="value">-</div></div>
+      <div class="card kpi"><div class="label">Achievement</div><div id="kpiAchv" class="value">-</div></div>
+      <div class="card kpi"><div class="label">Records</div><div id="kpiRows" class="value">-</div></div>
     </section>
+
+    <section class="card" style="margin-top:12px">
+      <h3 style="margin:0 0 10px 0">การบรรลุเป้าหมายรายสาขา (Visual Summary)</h3>
+      <div id="branchSummary"></div>
+    </section>
+
+    <div class="row">
+      <section class="card"><h3 style="margin:0 0 10px 0">Achievement ตามประเภทช่องทาง</h3><canvas id="typeChart" height="220"></canvas></section>
+      <section class="card"><h3 style="margin:0 0 10px 0">สรุปภาพรวมรายวัน</h3><canvas id="dailyChart" height="220"></canvas></section>
+    </div>
+
+    <div class="row-2">
+      <section class="card"><h3 style="margin:0 0 10px 0">Achievement แยกตามช่องทาง</h3><canvas id="channelChart" height="240"></canvas></section>
+      <section class="card">
+        <h3 style="margin:0 0 10px 0">ข้อมูล (หลังกรอง)</h3>
+        <div style="overflow:auto;max-height:360px">
+          <table id="dataTable">
+            <thead><tr><th>วันที่</th><th>branch</th><th>channel</th><th>channel_type</th><th>target</th><th>actual</th><th>achievement</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="footer" id="lastUpdate"></div>
+      </section>
+    </div>
   </div>
-</div>
 
-<script>
-dayjs.extend(dayjs_plugin_customParseFormat);
+  <script>
+    // ---------- CONFIG ----------
+    const SPREADSHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
+    const SHEET_NAME     = 'dailysale';
+    // ต้องตั้ง Share ของไฟล์เป็น: Anyone with the link (Viewer)  ✔
 
-// ---- ใช้ลิงก์ CSV (Publish to web) gid=0 ตามที่ให้มา ----
-const PUB_CSV_URL = 'https://docs.google.com/spreadsheets/d/11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M/pub?gid=0&single=true&output=csv';
+    dayjs.extend(dayjs_plugin_customParseFormat);
 
-let RAW=[], VIEW=[], charts={};
-const parseNum=v=> (v===null||v===undefined)?0:(typeof v==='number'?v:(Number(String(v).replace(/,/g,'').trim())||0));
-const fmtNum=n=> n.toLocaleString(undefined,{maximumFractionDigits:2});
-const ratio=(a,b)=> b===0?0:a/b;
-const achvColor=p=> p>=1?'var(--accent)':(p>=0.8?'var(--warn)':'var(--danger)');
+    // ---------- UTIL ----------
+    const parseNum = v => (v==null) ? 0 : (typeof v==='number'? v : (Number(String(v).replace(/,/g,'').trim()) || 0));
+    const fmtNum = n => n.toLocaleString(undefined,{maximumFractionDigits:2});
+    const ratio = (a,b) => b===0 ? 0 : a/b;
+    const achvColor = p => p>=1 ? 'var(--accent)' : (p>=0.8 ? 'var(--warn)' : 'var(--danger)');
 
-fetchSheet();
-
-async function fetchSheet(){
-  try{
-    const res = await fetch(PUB_CSV_URL,{cache:'no-cache'});
-    const txt = await res.text();
-    const parsed = Papa.parse(txt,{header:true,skipEmptyLines:true});
-    RAW = parsed.data.map(normalizeRow).filter(r=>r.dateISO && r.branch);
-    document.getElementById('lastUpdate').textContent = 'Last update: '+new Date().toLocaleString();
-    hydrateFilters(); applyFilters();
-  }catch(e){
-    console.error(e);
-    alert('ไม่สามารถดึงข้อมูลจาก Google Sheet (CSV) ได้\nตรวจสอบว่าไฟล์ได้ Publish to web และลิงก์ CSV ถูกต้อง');
-  }
-}
-
-function normalizeRow(obj){
-  const rawDate = obj['วันที่'] || obj['date'] || obj['Date'] || '';
-  let dISO='';
-  if(typeof rawDate==='string'){
-    if(/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) dISO=rawDate;
-    else{
-      const d = dayjs(rawDate,['M/D/YYYY','D/M/YYYY','DD/MM/YYYY','YYYY-MM-DD'],true);
-      dISO = d.isValid()? d.format('YYYY-MM-DD'):'';
+    // ---------- ดึงข้อมูลแบบเดียวกับโค้ดของคุณ (GViz) ----------
+    async function fetchGViz(sheetName){
+      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      const text = await res.text();
+      if (!text.includes('google.visualization')) {
+        throw new Error('โหลดชีทไม่สำเร็จ (สิทธิ์/ชื่อชีต) : ' + text.slice(0,160));
+      }
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const cols = json.table.cols.map(c => c.label || c.id);
+      const rows = (json.table.rows||[]).map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? '') : ''));
+      return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
-  }
-  const target = parseNum(obj['daily_target_litre'] ?? obj['target']);
-  const actual = parseNum(obj['actual_litre'] ?? obj['goal'] ?? obj['actual']);
-  return {
-    dateISO:dISO,
-    branch:(obj['branch']??'').toString(),
-    channel:(obj['channel']??'').toString(),
-    type:(obj['channel_type']??'').toString(),
-    target, actual, achv: ratio(actual,target)
-  };
-}
 
-function hydrateFilters(){
-  const branches = [...new Set(RAW.map(r=>r.branch))].sort();
-  const types = [...new Set(RAW.map(r=>r.type))].sort();
-  document.getElementById('branchFilter').innerHTML = '<option value="">All</option>'+branches.map(b=>`<option value="${b}">${b}</option>`).join('');
-  document.getElementById('typeFilter').innerHTML = '<option value="">All</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
-  const minD = RAW.reduce((m,r)=>!m||r.dateISO<m?r.dateISO:m,null);
-  const maxD = RAW.reduce((m,r)=>!m||r.dateISO>m?r.dateISO:m,null);
-  document.getElementById('dateFrom').value=minD||''; document.getElementById('dateTo').value=maxD||'';
-}
+    // ---------- ปรับโครงแถว ----------
+    function normalizeRow(obj){
+      const rawDate = obj['วันที่'] || obj['date'] || obj['Date'] || '';
+      let dateISO = '';
+      if (typeof rawDate === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) dateISO = rawDate;
+        else {
+          const d = dayjs(rawDate, ['M/D/YYYY','D/M/YYYY','DD/MM/YYYY','YYYY-MM-DD'], true);
+          if (d.isValid()) dateISO = d.format('YYYY-MM-DD');
+        }
+      }
+      const target = parseNum(obj['daily_target_litre'] ?? obj['target']);
+      const actual = parseNum(obj['actual_litre'] ?? obj['goal'] ?? obj['actual']);
 
-function applyFilters(){
-  const f=document.getElementById('dateFrom').value, t=document.getElementById('dateTo').value;
-  const b=document.getElementById('branchFilter').value, ty=document.getElementById('typeFilter').value;
-  VIEW = RAW.filter(r=>{
-    if(f && r.dateISO<f) return false;
-    if(t && r.dateISO>t) return false;
-    if(b && r.branch!==b) return false;
-    if(ty && r.type!==ty) return false;
-    return true;
-  });
-  renderAll();
-}
+      return {
+        dateISO,
+        branch: (obj['branch'] ?? '').toString(),
+        channel: (obj['channel'] ?? '').toString(),
+        type: (obj['channel_type'] ?? '').toString(),
+        target, actual, achv: ratio(actual, target)
+      };
+    }
 
-function renderAll(){ renderKPI(); renderBranchSummary(); renderTypeChart(); renderDailyChart(); renderChannelChart(); renderTable(); }
-function sum(arr,key){return arr.reduce((s,x)=>s+(x[key]||0),0);}
+    // ---------- สถานะหน้าจอ ----------
+    let RAW=[], VIEW=[], charts={};
 
-function renderKPI(){
-  const tgt=sum(VIEW,'target'), act=sum(VIEW,'actual'), ach=ratio(act,tgt);
-  q('#kpiTarget').textContent=fmtNum(tgt);
-  q('#kpiActual').textContent=fmtNum(act);
-  q('#kpiAchv').textContent=(ach*100).toFixed(1)+'%';
-  q('#kpiRows').textContent=fmtNum(VIEW.length);
-}
+    function hydrateFilters(){
+      const branches = [...new Set(RAW.map(r=>r.branch))].sort();
+      const types    = [...new Set(RAW.map(r=>r.type))].sort();
+      branchFilter.innerHTML = '<option value="">All</option>'+branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+      typeFilter.innerHTML   = '<option value="">All</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
+      const minD = RAW.reduce((m,r)=>!m||r.dateISO<m? r.dateISO:m, null);
+      const maxD = RAW.reduce((m,r)=>!m||r.dateISO>m? r.dateISO:m, null);
+      dateFrom.value=minD||''; dateTo.value=maxD||'';
+    }
 
-function renderBranchSummary(){
-  const box=q('#branchSummary'); box.innerHTML='';
-  const groups=groupBy(VIEW,'branch'); const keys=Object.keys(groups).sort();
-  keys.forEach(k=>{
-    const rows=groups[k]; const tgt=sum(rows,'target'), act=sum(rows,'actual'); const p=ratio(act,tgt);
-    const div=document.createElement('div'); div.style.margin='10px 0';
-    div.innerHTML=`<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px">
-      <span>${k}</span><span>${fmtNum(act)} / ${fmtNum(tgt)} • ${(p*100).toFixed(1)}%</span></div>
-      <div class="progress"><span style="width:${Math.min(100,p*100)}%;background:${achvColor(p)}"></span></div>`;
-    box.appendChild(div);
-  });
-  if(keys.length===0) box.innerHTML='<div style="color:var(--muted)">No data</div>';
-}
+    function applyFilters(){
+      const f=dateFrom.value, t=dateTo.value, b=branchFilter.value, ty=typeFilter.value;
+      VIEW = RAW.filter(r=>{
+        if (f && r.dateISO<f) return false;
+        if (t && r.dateISO>t) return false;
+        if (b && r.branch!==b) return false;
+        if (ty && r.type!==ty) return false;
+        return true;
+      });
+      renderAll();
+    }
 
-function renderTypeChart(){
-  const g=aggregate(VIEW,'type'); const labels=g.map(x=>x.key);
-  const targets=g.map(x=>x.target), actuals=g.map(x=>x.actual), pct=g.map(x=>x.target?x.actual/x.target*100:0);
-  drawBarLine('typeChart',labels,[
-    {label:'Target',data:targets,type:'bar'},
-    {label:'Actual',data:actuals,type:'bar'},
-    {label:'Achievement %',data:pct,type:'line',yAxisID:'y1'}
-  ]);
-}
+    function sum(arr,key){ return arr.reduce((s,x)=>s+(x[key]||0),0); }
 
-function renderDailyChart(){
-  const g=aggregate(VIEW,'dateISO').sort((a,b)=>a.key.localeCompare(b.key));
-  drawBar('dailyChart', g.map(x=>x.key), [
-    {label:'Target',data:g.map(x=>x.target)},
-    {label:'Actual',data:g.map(x=>x.actual)}
-  ]);
-}
+    function renderKPI(){
+      const tgt=sum(VIEW,'target'), act=sum(VIEW,'actual'), ach=ratio(act,tgt);
+      kpiTarget.textContent = fmtNum(tgt);
+      kpiActual.textContent = fmtNum(act);
+      kpiAchv.textContent   = (ach*100).toFixed(1)+'%';
+      kpiRows.textContent   = fmtNum(VIEW.length);
+    }
 
-function renderChannelChart(){
-  const g=aggregate(VIEW,'channel');
-  drawBar('channelChart', g.map(x=>x.key), [{label:'Achievement %',data:g.map(x=>x.target?x.actual/x.target*100:0)}]);
-}
+    function renderBranchSummary(){
+      const box = document.getElementById('branchSummary'); box.innerHTML='';
+      const byB = VIEW.reduce((a,r)=>((a[r.branch]=a[r.branch]||[]).push(r),a),{});
+      Object.keys(byB).sort().forEach(br=>{
+        const tgt=sum(byB[br],'target'), act=sum(byB[br],'actual'), p=ratio(act,tgt);
+        const row=document.createElement('div'); row.style.margin='10px 0';
+        row.innerHTML = `
+          <div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px">
+            <span>${br}</span><span>${fmtNum(act)} / ${fmtNum(tgt)} • ${(p*100).toFixed(1)}%</span>
+          </div>
+          <div class="progress"><span style="width:${Math.min(100,p*100)}%;background:${achvColor(p)}"></span></div>`;
+        box.appendChild(row);
+      });
+      if (!Object.keys(byB).length) box.innerHTML = '<div style="color:var(--muted)">No data</div>';
+    }
 
-function renderTable(){
-  const tb=q('#dataTable tbody');
-  tb.innerHTML = VIEW.map(r=>`<tr>
-    <td>${r.dateISO}</td><td>${r.branch}</td><td>${r.channel}</td><td>${r.type}</td>
-    <td style="text-align:right">${fmtNum(r.target)}</td>
-    <td style="text-align:right">${fmtNum(r.actual)}</td>
-    <td style="text-align:right">${(r.achv*100).toFixed(1)}%</td></tr>`).join('');
-}
+    function drawBar(id, labels, datasets){
+      if(charts[id]){ charts[id].destroy(); delete charts[id]; }
+      charts[id] = new Chart(document.getElementById(id),{
+        type:'bar',
+        data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:1})) },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{labels:{color:'#cbd5e1'}} },
+          scales:{
+            x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
+            y:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}}
+          }
+        }
+      });
+    }
 
-function groupBy(arr,key){return arr.reduce((a,x)=>((a[x[key]??'']=a[x[key]??'']||[]).push(x),a),{});}
-function aggregate(arr,key){const g=groupBy(arr,key);return Object.keys(g).map(k=>({key:k,target:sum(g[k],'target'),actual:sum(g[k],'actual')}));}
-function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
-function drawBar(id,labels,datasets){destroy(id);charts[id]=new Chart(q('#'+id),{type:'bar',data:{labels,datasets:datasets.map(d=>({...d,borderWidth:1}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cbd5e1'}}},scales:{x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}}}}});}
-function drawBarLine(id,labels,datasets){destroy(id);charts[id]=new Chart(q('#'+id),{data:{labels,datasets:datasets.map(d=>({...d,borderWidth:2,tension:.25,pointRadius:2}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#cbd5e1'}}},scales:{x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},y:{position:'left',ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},y1:{position:'right',ticks:{color:'#9ca3af',callback:v=>v+'%'},grid:{drawOnChartArea:false}}}}});}
-const q=s=>document.querySelector(s);
-document.getElementById('applyBtn').addEventListener('click',applyFilters);
-document.getElementById('resetBtn').addEventListener('click',()=>{q('#branchFilter').value='';q('#typeFilter').value='';q('#dateFrom').value='';q('#dateTo').value='';VIEW=RAW.slice();renderAll();});
-</script>
+    function drawBarLine(id, labels, datasets){
+      if(charts[id]){ charts[id].destroy(); delete charts[id]; }
+      charts[id] = new Chart(document.getElementById(id),{
+        data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:2, tension:.25, pointRadius:2})) },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{labels:{color:'#cbd5e1'}} },
+          scales:{
+            x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
+            y:{position:'left',ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
+            y1:{position:'right',ticks:{color:'#9ca3af',callback:v=>v+'%'},grid:{drawOnChartArea:false}}
+          }
+        }
+      });
+    }
+
+    function renderTypeChart(){
+      const g = Object.values(VIEW.reduce((a,r)=>{
+        const k=r.type||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
+      },{}));
+      const labels=g.map(x=>x.key), targets=g.map(x=>x.target), actuals=g.map(x=>x.actual), pct=g.map(x=>x.target? x.actual/x.target*100:0);
+      drawBarLine('typeChart', labels, [
+        {label:'Target', data:targets, type:'bar'},
+        {label:'Actual', data:actuals, type:'bar'},
+        {label:'Achievement %', data:pct, type:'line', yAxisID:'y1'}
+      ]);
+    }
+
+    function renderDailyChart(){
+      const g = Object.values(VIEW.reduce((a,r)=>{
+        const k=r.dateISO||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
+      },{})).sort((x,y)=>x.key.localeCompare(y.key));
+      drawBar('dailyChart', g.map(x=>x.key), [
+        {label:'Target', data:g.map(x=>x.target)},
+        {label:'Actual', data:g.map(x=>x.actual)}
+      ]);
+    }
+
+    function renderChannelChart(){
+      const g = Object.values(VIEW.reduce((a,r)=>{
+        const k=r.channel||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
+      },{}));
+      drawBar('channelChart', g.map(x=>x.key), [{label:'Achievement %', data:g.map(x=>x.target?x.actual/x.target*100:0)}]);
+    }
+
+    function renderTable(){
+      const tb=document.querySelector('#dataTable tbody');
+      tb.innerHTML = VIEW.map(r=>`
+        <tr>
+          <td>${r.dateISO}</td><td>${r.branch}</td><td>${r.channel}</td><td>${r.type}</td>
+          <td style="text-align:right">${fmtNum(r.target)}</td>
+          <td style="text-align:right">${fmtNum(r.actual)}</td>
+          <td style="text-align:right">${(r.achv*100).toFixed(1)}%</td>
+        </tr>`).join('');
+    }
+
+    function renderAll(){ renderKPI(); renderBranchSummary(); renderTypeChart(); renderDailyChart(); renderChannelChart(); renderTable(); }
+
+    // ---------- INIT ----------
+    document.getElementById('applyBtn').addEventListener('click',applyFilters);
+    document.getElementById('resetBtn').addEventListener('click',()=>{branchFilter.value='';typeFilter.value='';dateFrom.value='';dateTo.value='';VIEW=RAW.slice();renderAll();});
+
+    (async function init(){
+      try{
+        const rawRows = await fetchGViz(SHEET_NAME);
+        RAW = rawRows.map(normalizeRow).filter(r=>r.dateISO && r.branch);
+        document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
+        hydrateFilters(); applyFilters();
+      }catch(err){
+        console.error(err);
+        alert('โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ:\n' + (err.message || err));
+      }
+    })();
+  </script>
 </body>
 </html>
