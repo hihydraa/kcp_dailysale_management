@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Performance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- New Font: Kanit (Modern Thai/Latin) -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #f0f4f8; /* Lighter, cleaner background */
+        }
+        /* Custom styles for achievement color coding */
+        .achievement-low { background-color: #fca5a5; } /* Red-300 */
+        .achievement-medium { background-color: #fde68a; } /* Yellow-300 */
+        .achievement-high { background-color: #a7f3d0; } /* Green-300 */
+        .achievement-bar-bg { background-color: #e5e7eb; } /* Gray-200 */
+
+        /* Custom scrollbar for table on mobile */
+        .table-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Header and Title -->
+    <header class="mb-8 border-b-4 border-indigo-200 pb-4">
+        <h1 class="text-4xl font-extrabold text-indigo-700">📈 แดชบอร์ดบริหารยอดขาย</h1>
+        <p class="text-gray-500 mt-2 text-lg">รายงานประสิทธิภาพการขายรายสาขาและช่องทาง</p>
+    </header>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="fixed inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center" style="display: none;">
+        <div class="flex flex-col items-center p-6 bg-white rounded-xl shadow-2xl">
+            <svg class="animate-spin h-8 w-8 text-indigo-600 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-lg font-medium text-gray-700">กำลังดึงข้อมูลจาก Google Sheet...</p>
+        </div>
+    </div>
+
+
+    <!-- 1. Filter Section (Date + Branch) -->
+    <section class="mb-8 p-6 bg-white rounded-2xl shadow-xl border border-indigo-100">
+        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">1. ตัวกรองข้อมูล</h2>
+        <div class="flex flex-col space-y-4">
+            <!-- Row 1: Date Filters -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">ตั้งแต่วันที่</label>
+                    <input type="date" id="startDate" class="w-full p-2 border border-indigo-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                </div>
+                <div>
+                    <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">ถึงวันที่</label>
+                    <input type="date" id="endDate" class="w-full p-2 border border-indigo-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                </div>
+            </div>
+            
+            <!-- Row 2: Branch Filter -->
+            <div class="w-full">
+                <label for="branchFilter" class="block text-sm font-medium text-gray-700 mb-1">สาขา (Branch)</label>
+                <select id="branchFilter" class="w-full p-2 border border-indigo-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+                    <option value="all">-- ทุกสาขา --</option>
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+        </div>
+
+        <button onclick="applyFilter()" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition duration-200 shadow-md hover:shadow-lg">
+            แสดงผลลัพธ์
+        </button>
+    </section>
+    
+    <!-- 2. Branch Achievement Bar Chart (MOVED UP) -->
+    <section class="mb-8 p-6 bg-white rounded-2xl shadow-xl border border-indigo-100">
+        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">2. การบรรลุเป้าหมายรายสาขา (Visual Summary)</h2>
+        <div id="branchChart" class="flex flex-col space-y-4 p-2">
+            <!-- Simple bar chart will be dynamically inserted here -->
+            <p class="text-center text-gray-400 p-4" id="chartMessage">ข้อมูลจะปรากฏหลังจากการกรองวันที่</p>
+        </div>
+    </section>
+
+
+    <!-- 3. Overall KPI Cards Section (MOVED DOWN) -->
+    <section class="mb-8">
+        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">3. สรุปภาพรวม (Overall KPI)</h2>
+        <div id="kpiContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <!-- KPI cards will be dynamically inserted here -->
+        </div>
+    </section>
+
+    <!-- 4. KPI by Channel Type Section (MOVED DOWN) -->
+    <section class="mb-8">
+        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">4. Achievement ตามประเภทช่องทาง (Channel Type KPI)</h2>
+        <div id="channelTypeKpiContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Channel Type KPI cards will be dynamically inserted here -->
+            <p class="text-center text-gray-400 p-4 col-span-full" id="channelTypeMessage" style="display:none;">ข้อมูลจะปรากฏหลังจากการกรองวันที่</p>
+        </div>
+    </section>
+
+    <!-- 5. Detailed Performance Visualization (Branch and Channel) (MOVED DOWN) -->
+    <section class="mb-8 p-6 bg-white rounded-2xl shadow-xl border border-indigo-100">
+        <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">5. Achievement แยกตามช่องทาง (Channel Breakdown)</h2>
+        <div id="performanceTableContainer" class="flex flex-col space-y-4">
+            <!-- Card/List view will be dynamically inserted here -->
+            <p class="text-center text-gray-400 p-4" id="loadingMessage">โปรดเลือกช่วงวันที่เพื่อแสดงข้อมูล</p>
+        </div>
+    </section>
+    
+    <script>
+        // --- CONFIGURATION ---
+        const SPREADSHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
+        const SHEET_NAME = 'dailysale';
+        // Google Sheets API Query URL (Gviz/tq) for public sheets
+        const GSHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+
+        // Global variable to store fetched and normalized data
+        let allData = [];
+        let minDate, maxDate;
+        
+        // Global variables and utility functions
+        const NUMBER_FORMAT = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        function parseDate(dateString) {
+            // Converts 'YYYY-MM-DD' date string to Date object
+            return new Date(dateString + 'T00:00:00'); 
+        }
+
+        function isDateInRange(date, start, end) {
+            const dataDate = parseDate(date);
+            const startDate = parseDate(start);
+            const endDate = parseDate(end);
+            return dataDate >= startDate && dataDate <= endDate;
+        }
+
+        // Color coding logic
+        function getAchievementColor(percentage) {
+            if (percentage >= 100) return 'bg-emerald-600 text-white'; // High
+            if (percentage >= 80) return 'bg-amber-400 text-gray-800';  // Medium
+            return 'bg-red-500 text-white';                         // Low
+        }
+        
+        function getAchievementBarColor(percentage) {
+            if (percentage >= 100) return 'bg-emerald-500'; // High
+            if (percentage >= 80) return 'bg-amber-400';  // Medium
+            return 'bg-red-500';                         // Low
+        }
+        
+        // Helper to show/hide loading indicator
+        function toggleLoading(show) {
+            document.getElementById('loadingIndicator').style.display = show ? 'flex' : 'none';
+        }
+
+        // --- FETCH DATA LOGIC ---
+        
+        // Function to convert date string (e.g., D/M/YYYY) to YYYY-MM-DD
+        function normalizeDate(dateString) {
+            if (!dateString) return null;
+            
+            // This is crucial for handling GSheet's mixed date formats (e.g., d/m/yyyy)
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                let [day, month, year] = parts;
+
+                if (year.length === 2) {
+                    year = '20' + year;
+                }
+                
+                day = day.padStart(2, '0');
+                month = month.padStart(2, '0');
+                
+                return `${year}-${month}-${day}`;
+            }
+            return dateString;
+        }
+
+        async function fetchDataFromGoogleSheet() {
+            toggleLoading(true);
+            try {
+                const response = await fetch(GSHEET_URL);
+                const text = await response.text();
+                
+                const jsonText = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+                const data = JSON.parse(jsonText);
+                
+                const rows = data.table.rows;
+                
+                const processedData = rows.map(row => {
+                    // Columns indices: A=0 (date), B=1 (branch), C=2 (channel), D=3 (channel_type), E=4 (target), F=5 (goal)
+                    const dateValue = row.c[0] ? row.c[0].v : null;
+
+                    return {
+                        date: normalizeDate(dateValue),
+                        branch: row.c[1] ? row.c[1].v : '',
+                        channel: row.c[2] ? row.c[2].v : '',
+                        channel_type: row.c[3] ? row.c[3].v : '',
+                        target: row.c[4] ? parseFloat(row.c[4].v) || 0 : 0, 
+                        goal: row.c[5] ? parseFloat(row.c[5].v) || 0 : 0    
+                    };
+                }).filter(item => item.date); 
+
+                allData = processedData;
+                
+                if (allData.length > 0) {
+                    const dates = allData.map(item => item.date).sort();
+                    minDate = dates[0];
+                    maxDate = dates[dates.length - 1];
+                    
+                    document.getElementById('startDate').value = minDate;
+                    document.getElementById('endDate').value = maxDate;
+                    
+                    populateBranchFilter();
+                    applyFilter();
+
+                } else {
+                    document.getElementById('loadingMessage').textContent = "ไม่พบข้อมูลใน Google Sheet";
+                }
+                
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                document.getElementById('loadingMessage').textContent = `เกิดข้อผิดพลาดในการดึงข้อมูล: โปรดตรวจสอบ Sheet ID และสิทธิ์การเข้าถึงสาธารณะ`;
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // --- CORE DASHBOARD LOGIC ---
+
+        function applyFilter() {
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput = document.getElementById('endDate').value;
+            const selectedBranch = document.getElementById('branchFilter').value;
+            
+            const loadingMessage = document.getElementById('loadingMessage');
+            const chartMessage = document.getElementById('chartMessage');
+            const channelTypeMessage = document.getElementById('channelTypeMessage');
+
+            // 1. Basic Validation
+            if (!startDateInput || !endDateInput || parseDate(startDateInput) > parseDate(endDateInput)) {
+                const message = "โปรดระบุช่วงวันที่ที่ถูกต้อง";
+                if (allData.length > 0) {
+                    loadingMessage.textContent = message;
+                    chartMessage.textContent = message;
+                    channelTypeMessage.textContent = message;
+                    channelTypeMessage.style.display = 'block';
+
+                    // Clear containers if invalid filter applied
+                    document.getElementById('kpiContainer').innerHTML = '';
+                    document.getElementById('performanceTableContainer').innerHTML = `<p class="text-center text-gray-400 p-4">${message}</p>`;
+                    document.getElementById('branchChart').innerHTML = `<p class="text-center text-gray-400 p-4">${message}</p>`;
+                    document.getElementById('channelTypeKpiContainer').innerHTML = `<p class="text-center text-gray-400 p-4 col-span-full">${message}</p>`;
+                }
+                return;
+            }
+
+            // 2. Filter Data (Date + Branch)
+            const filteredData = allData.filter(item => {
+                const isDateOK = isDateInRange(item.date, startDateInput, endDateInput);
+                const isBranchOK = selectedBranch === 'all' || item.branch === selectedBranch;
+                return isDateOK && isBranchOK;
+            });
+
+            if (filteredData.length === 0) {
+                const message = "ไม่พบข้อมูลในช่วงวันที่และเงื่อนไขที่เลือก";
+                loadingMessage.style.display = 'block';
+                chartMessage.style.display = 'block';
+                channelTypeMessage.style.display = 'block';
+                
+                loadingMessage.textContent = message;
+                chartMessage.textContent = message;
+                channelTypeMessage.textContent = message;
+
+                document.getElementById('kpiContainer').innerHTML = '';
+                document.getElementById('performanceTableContainer').innerHTML = `<p class="text-center text-gray-400 p-4">${message}</p>`;
+                document.getElementById('branchChart').innerHTML = `<p class="text-center text-gray-400 p-4">${message}</p>`;
+                document.getElementById('channelTypeKpiContainer').innerHTML = `<p class="text-center text-gray-400 p-4 col-span-full">${message}</p>`;
+                return;
+            }
+            
+            // Hide messages
+            loadingMessage.style.display = 'none';
+            chartMessage.style.display = 'none';
+            channelTypeMessage.style.display = 'none';
+
+
+            // 3. Render Dashboard Components
+            renderKPIs(filteredData);
+            renderChannelTypeKPIs(filteredData); 
+            renderPerformanceList(filteredData);
+            renderBranchChart(filteredData);
+        }
+
+        // Section 3: Overall KPI
+        function renderKPIs(data) {
+            const totalTarget = data.reduce((sum, item) => sum + item.target, 0);
+            const totalGoal = data.reduce((sum, item) => sum + item.goal, 0);
+            const overallAchievement = totalTarget > 0 ? (totalGoal / totalTarget) * 100 : 0;
+            const overallAchColor = getAchievementColor(overallAchievement);
+
+            const kpis = [
+                { title: 'ยอดขายรวม (Litre)', value: totalGoal, unit: 'Litre', format: 'number' },
+                { title: 'เป้าหมายรวม (Litre)', value: totalTarget, unit: 'Litre', format: 'number' },
+                { title: 'Achievement รวม', value: overallAchievement, unit: '%', format: 'percentage', color: overallAchColor }
+            ];
+
+            const kpiHtml = kpis.map(kpi => {
+                let valueDisplay;
+                let colorClasses = 'bg-white border-indigo-200';
+                
+                if (kpi.format === 'number') {
+                    valueDisplay = NUMBER_FORMAT.format(kpi.value);
+                } else if (kpi.format === 'percentage') {
+                    valueDisplay = NUMBER_FORMAT.format(kpi.value) + kpi.unit;
+                    colorClasses = `${kpi.color} border-0 text-white`; // Highlighting the Achievement card
+                }
+
+                return `
+                    <div class="p-5 rounded-2xl shadow-lg border ${colorClasses} transform hover:scale-[1.02] transition duration-300">
+                        <p class="text-sm font-medium ${kpi.format === 'percentage' ? 'text-white/90' : 'text-gray-500'}">${kpi.title}</p>
+                        <p class="text-3xl font-bold mt-1 ${kpi.format === 'percentage' ? 'text-white' : 'text-indigo-600'}">${valueDisplay}</p>
+                        ${kpi.format === 'number' ? `<p class="text-xs text-gray-400">${kpi.unit}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('kpiContainer').innerHTML = kpiHtml;
+        }
+
+        // Section 4: KPI by Channel Type
+        function renderChannelTypeKPIs(data) {
+            const groupedByType = data.reduce((acc, item) => {
+                const key = item.channel_type;
+                if (!acc[key]) {
+                    acc[key] = { type: key, totalTarget: 0, totalGoal: 0 };
+                }
+                acc[key].totalTarget += item.target;
+                acc[key].totalGoal += item.goal;
+                return acc;
+            }, {});
+
+            const channelTypePerformance = Object.values(groupedByType).map(group => {
+                group.achievement = group.totalTarget > 0 ? (group.totalGoal / group.totalTarget) * 100 : 0;
+                return group;
+            }).sort((a, b) => b.achievement - a.achievement); 
+
+            const typeMap = { 'Front': 'Front Sale', 'Back': 'Back Office', 'MT': 'Modern Trade' };
+
+            const kpiHtml = channelTypePerformance.map(item => {
+                const achievementFormatted = NUMBER_FORMAT.format(item.achievement);
+                const title = typeMap[item.type] || item.type;
+                const achColor = getAchievementColor(item.achievement);
+                const barWidth = Math.min(100, item.achievement);
+                const textHighlight = item.achievement >= 100 ? 'text-emerald-600' : (item.achievement >= 80 ? 'text-amber-500' : 'text-red-500');
+
+                return `
+                    <div class="p-5 rounded-xl shadow-md border border-gray-200 bg-white transform hover:shadow-lg transition duration-200">
+                        <p class="text-base font-semibold text-indigo-500">${title}</p>
+                        
+                        <div class="flex justify-between items-end mt-2">
+                            <p class="text-2xl font-bold ${textHighlight}">${achievementFormatted}%</p>
+                            <span class="text-xs text-gray-500">ยอด: ${NUMBER_FORMAT.format(item.totalGoal)} L</span>
+                        </div>
+                        
+                        <!-- Mini Bar Chart -->
+                        <div class="w-full achievement-bar-bg rounded-full h-2 mt-2">
+                            <div class="h-2 rounded-full ${getAchievementBarColor(item.achievement)}" style="width: ${barWidth}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('channelTypeKpiContainer').innerHTML = kpiHtml;
+        }
+
+
+        // Section 5: Channel Breakdown (Detailed Performance)
+        function renderPerformanceList(data) {
+            const groupedData = data.reduce((acc, item) => {
+                const key = `${item.branch}|${item.channel}`;
+                if (!acc[key]) {
+                    acc[key] = { branch: item.branch, channel: item.channel, totalTarget: 0, totalGoal: 0 };
+                }
+                acc[key].totalTarget += item.target;
+                acc[key].totalGoal += item.goal;
+                return acc;
+            }, {});
+
+            const performanceList = Object.values(groupedData).map(group => {
+                group.achievement = group.totalTarget > 0 ? (group.totalGoal / group.totalTarget) * 100 : 0;
+                return group;
+            }).sort((a, b) => b.achievement - a.achievement); 
+
+            if (performanceList.length === 0) {
+                 document.getElementById('performanceTableContainer').innerHTML = `<p class="text-center text-gray-400 p-4">ไม่พบข้อมูล Achievement ในช่วงวันที่และสาขาที่เลือก</p>`;
+                 return;
+            }
+
+            let listHtml = performanceList.map(item => {
+                const achievementFormatted = NUMBER_FORMAT.format(item.achievement);
+                const barWidth = Math.min(100, item.achievement);
+                const colorClass = getAchievementBarColor(item.achievement);
+                const textClass = item.achievement >= 100 ? 'text-emerald-600' : (item.achievement >= 80 ? 'text-amber-500' : 'text-red-500');
+
+                return `
+                    <div class="bg-gray-50 p-4 rounded-xl shadow-md border border-gray-200 hover:shadow-xl transition duration-200">
+                        <!-- Top Row: Branch and Channel -->
+                        <div class="flex justify-between items-start mb-2 border-b border-gray-200 pb-2">
+                            <h3 class="text-lg font-bold text-gray-800">${item.channel}</h3>
+                            <span class="text-sm font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">${item.branch}</span>
+                        </div>
+                        
+                        <!-- KPI Values -->
+                        <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+                            <div>
+                                <p class="text-gray-500">เป้าหมาย (L)</p>
+                                <p class="font-semibold text-gray-900">${NUMBER_FORMAT.format(item.totalTarget)}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">ยอดขาย (L)</p>
+                                <p class="font-semibold text-gray-900">${NUMBER_FORMAT.format(item.totalGoal)}</p>
+                            </div>
+                        </div>
+
+                        <!-- Achievement Visualization -->
+                        <div class="mt-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <p class="text-sm font-medium text-gray-700">Achievement</p>
+                                <span class="font-extrabold ${textClass} text-xl">${achievementFormatted}%</span>
+                            </div>
+                            <div class="w-full achievement-bar-bg rounded-full h-4 relative">
+                                <div class="h-4 rounded-full ${colorClass} transition-all duration-500 ease-out" style="width: ${barWidth}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('performanceTableContainer').innerHTML = listHtml;
+        }
+        
+        // Section 2: Branch Achievement Bar Chart
+        function renderBranchChart(data) {
+            const branchGrouped = data.reduce((acc, item) => {
+                const key = item.branch;
+                if (!acc[key]) {
+                    acc[key] = { branch: item.branch, totalTarget: 0, totalGoal: 0 };
+                }
+                acc[key].totalTarget += item.target;
+                acc[key].totalGoal += item.goal;
+                return acc;
+            }, {});
+
+            const branchPerformance = Object.values(branchGrouped).map(group => {
+                group.achievement = group.totalTarget > 0 ? (group.totalGoal / group.totalTarget) * 100 : 0;
+                return group;
+            }).sort((a, b) => b.achievement - a.achievement);
+            
+            if (branchPerformance.length === 0) {
+                 document.getElementById('branchChart').innerHTML = `<p class="text-center text-gray-400 p-4">ไม่พบข้อมูล Achievement รายสาขาในช่วงวันที่และสาขาที่เลือก</p>`;
+                 return;
+            }
+
+            let chartHtml = '';
+            
+            branchPerformance.forEach(item => {
+                const percentage = item.achievement;
+                const barWidth = Math.min(100, percentage);
+                const colorClass = getAchievementBarColor(percentage);
+                const achievementFormatted = NUMBER_FORMAT.format(percentage);
+                const textClass = item.achievement >= 100 ? 'text-emerald-600' : (item.achievement >= 80 ? 'text-amber-500' : 'text-red-500');
+
+
+                chartHtml += `
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-medium text-gray-700">${item.branch}</span>
+                            <span class="font-bold text-sm ${textClass}">${achievementFormatted}%</span>
+                        </div>
+                        <div class="w-full achievement-bar-bg rounded-full h-4 relative">
+                            <div class="h-4 rounded-full ${colorClass} transition-all duration-500 ease-out" style="width: ${barWidth}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('branchChart').innerHTML = chartHtml;
+        }
+
+        function populateBranchFilter() {
+            const branchFilter = document.getElementById('branchFilter');
+            const uniqueBranches = [...new Set(allData.map(item => item.branch))].sort();
+
+            const existingOptions = Array.from(branchFilter.options);
+            for (let i = existingOptions.length - 1; i > 0; i--) {
+                branchFilter.remove(i);
+            }
+
+            uniqueBranches.forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch;
+                option.textContent = branch;
+                branchFilter.appendChild(option);
+            });
+        }
+
+        // --- Initialization ---
+
+        window.onload = () => {
+            fetchDataFromGoogleSheet();
+        };
+
+    </script>
+</body>
+</html>
