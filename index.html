@@ -33,6 +33,7 @@
     th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
     th{color:#cbd5e1;font-weight:600;font-size:13px}
     .footer{color:var(--muted);font-size:12px;margin-top:14px}
+    canvas{width:100% !important;} /* กันกราฟ re-layout จาก container */
     @media (max-width:960px){.cards{grid-template-columns:1fr 1fr}.row,.row-2{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
@@ -93,7 +94,6 @@
     // ---------- CONFIG ----------
     const SPREADSHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
     const SHEET_NAME     = 'dailysale'; // Share: Anyone with the link (Viewer)
-
     dayjs.extend(dayjs_plugin_customParseFormat);
 
     // ---------- UTIL ----------
@@ -102,16 +102,15 @@
     const ratio = (a,b) => b===0 ? 0 : a/b;
     const achvColor = p => p>=1 ? 'var(--accent)' : (p>=0.8 ? 'var(--warn)' : 'var(--danger)');
 
-    // ====== Y-axis locking helpers ======
-    let YMAX_TYPE = null;    // left y of Channel Type chart
-    let YMAX_DAILY = null;   // left y of Daily chart
-    const EXCLUDE_TODAY = false; // set true to drop today's moving data
-
-    function niceMax(n){
+    // ====== FREEZE SETTINGS ======
+    let YMAX_TYPE = null;   // y-left of Type chart
+    let YMAX_DAILY = null;  // y-left of Daily chart
+    const EXCLUDE_TODAY = false; // true = ตัดข้อมูลวันนี้ออก
+    const niceMax = (n)=> {
       if (!isFinite(n) || n <= 0) return 1;
       const p = 10 ** Math.floor(Math.log10(n));
-      return Math.ceil((n * 1.1) / p) * p; // +10% and round up to nice step
-    }
+      return Math.ceil((n * 1.1) / p); // ปัดขึ้นแบบเผื่อ 10%
+    };
 
     // ---------- GViz fetch ----------
     async function fetchGViz(sheetName){
@@ -204,14 +203,17 @@
       if (!Object.keys(byB).length) box.innerHTML = '<div style="color:var(--muted)">No data</div>';
     }
 
+    // Draw helpers: responsive=false + devicePixelRatio=1 + animation=false
     function drawBar(id, labels, datasets, opts={}){
       if(charts[id]){ charts[id].destroy(); delete charts[id]; }
       charts[id] = new Chart(document.getElementById(id),{
         type:'bar',
         data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:1})) },
         options:{
+          responsive:false,
+          devicePixelRatio:1,
           animation:false,
-          responsive:true, maintainAspectRatio:false,
+          maintainAspectRatio:false,
           plugins:{ legend:{labels:{color:'#cbd5e1'}} },
           scales:{
             x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
@@ -227,8 +229,10 @@
       charts[id] = new Chart(document.getElementById(id),{
         data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:2, tension:.25, pointRadius:2})) },
         options:{
+          responsive:false,
+          devicePixelRatio:1,
           animation:false,
-          responsive:true, maintainAspectRatio:false,
+          maintainAspectRatio:false,
           plugins:{ legend:{labels:{color:'#cbd5e1'}} },
           scales:{
             x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
@@ -252,8 +256,7 @@
             pct=g.map(x=>x.target? x.actual/x.target*100:0);
 
       if (YMAX_TYPE === null) {
-        const peak = Math.max(1, ...targets, ...actuals);
-        YMAX_TYPE = niceMax(peak);
+        YMAX_TYPE = niceMax(Math.max(1, ...targets, ...actuals));
       }
 
       drawBarLine('typeChart', labels, [
@@ -285,7 +288,7 @@
       },{}));
       drawBar('channelChart', g.map(x=>x.key), [
         {label:'Achievement %', data:g.map(x=>x.target?x.actual/x.target*100:0)}
-      ], { yMaxLeft: 100 }); // ไม่จำเป็นจริง ๆ เพราะเป็น %
+      ], { yMaxLeft: 100 }); // แกนซ้ายไม่สำคัญเพราะเป็น %
     }
 
     function renderTable(){
@@ -302,18 +305,11 @@
     function renderAll(){ renderKPI(); renderBranchSummary(); renderTypeChart(); renderDailyChart(); renderChannelChart(); renderTable(); }
 
     // ---------- INIT ----------
-    document.getElementById('applyBtn').addEventListener('click', ()=>{
-      // รีล็อก y-axis เมื่อผู้ใช้เปลี่ยนช่วงฟิลเตอร์เท่านั้น
-      YMAX_TYPE = null;
-      YMAX_DAILY = null;
-      applyFilters();
-    });
-
+    document.getElementById('applyBtn').addEventListener('click', applyFilters);
     document.getElementById('resetBtn').addEventListener('click', ()=>{
       branchFilter.value=''; typeFilter.value='';
       dateFrom.value=''; dateTo.value='';
-      YMAX_TYPE = null; YMAX_DAILY = null;
-      VIEW = RAW.slice(); renderAll();
+      applyFilters(); // ไม่รีเซ็ต YMAX_* เพื่อให้คงสเกลเดิม
     });
 
     (async function init(){
