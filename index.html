@@ -50,7 +50,10 @@
         <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date To</label><input type="date" id="dateTo"></div>
         <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Branch</label><select id="branchFilter"><option value="">All</option></select></div>
         <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Channel Type</label><select id="typeFilter"><option value="">All</option></select></div>
-        <div style="display:flex;gap:8px;align-items:flex-end"><button id="applyBtn">Apply</button><button id="resetBtn">Reset</button></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <button id="applyBtn">Apply</button>
+          <button id="resetBtn">Reset</button>
+        </div>
       </div>
     </header>
 
@@ -89,8 +92,7 @@
   <script>
     // ---------- CONFIG ----------
     const SPREADSHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
-    const SHEET_NAME     = 'dailysale';
-    // ต้องตั้ง Share ของไฟล์เป็น: Anyone with the link (Viewer)  ✔
+    const SHEET_NAME     = 'dailysale'; // Share: Anyone with the link (Viewer)
 
     dayjs.extend(dayjs_plugin_customParseFormat);
 
@@ -100,7 +102,18 @@
     const ratio = (a,b) => b===0 ? 0 : a/b;
     const achvColor = p => p>=1 ? 'var(--accent)' : (p>=0.8 ? 'var(--warn)' : 'var(--danger)');
 
-    // ---------- ดึงข้อมูลแบบเดียวกับโค้ดของคุณ (GViz) ----------
+    // ====== Y-axis locking helpers ======
+    let YMAX_TYPE = null;    // left y of Channel Type chart
+    let YMAX_DAILY = null;   // left y of Daily chart
+    const EXCLUDE_TODAY = false; // set true to drop today's moving data
+
+    function niceMax(n){
+      if (!isFinite(n) || n <= 0) return 1;
+      const p = 10 ** Math.floor(Math.log10(n));
+      return Math.ceil((n * 1.1) / p) * p; // +10% and round up to nice step
+    }
+
+    // ---------- GViz fetch ----------
     async function fetchGViz(sheetName){
       const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
       const res = await fetch(url, { cache: 'no-store' });
@@ -114,7 +127,7 @@
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
 
-    // ---------- ปรับโครงแถว ----------
+    // ---------- normalize ----------
     function normalizeRow(obj){
       const rawDate = obj['วันที่'] || obj['date'] || obj['Date'] || '';
       let dateISO = '';
@@ -127,7 +140,6 @@
       }
       const target = parseNum(obj['daily_target_litre'] ?? obj['target']);
       const actual = parseNum(obj['actual_litre'] ?? obj['goal'] ?? obj['actual']);
-
       return {
         dateISO,
         branch: (obj['branch'] ?? '').toString(),
@@ -137,7 +149,7 @@
       };
     }
 
-    // ---------- สถานะหน้าจอ ----------
+    // ---------- State ----------
     let RAW=[], VIEW=[], charts={};
 
     function hydrateFilters(){
@@ -152,13 +164,17 @@
 
     function applyFilters(){
       const f=dateFrom.value, t=dateTo.value, b=branchFilter.value, ty=typeFilter.value;
+      const todayISO = dayjs().format('YYYY-MM-DD');
+
       VIEW = RAW.filter(r=>{
+        if (EXCLUDE_TODAY && r.dateISO === todayISO) return false;
         if (f && r.dateISO<f) return false;
         if (t && r.dateISO>t) return false;
         if (b && r.branch!==b) return false;
         if (ty && r.type!==ty) return false;
         return true;
       });
+
       renderAll();
     }
 
@@ -188,33 +204,39 @@
       if (!Object.keys(byB).length) box.innerHTML = '<div style="color:var(--muted)">No data</div>';
     }
 
-    function drawBar(id, labels, datasets){
+    function drawBar(id, labels, datasets, opts={}){
       if(charts[id]){ charts[id].destroy(); delete charts[id]; }
       charts[id] = new Chart(document.getElementById(id),{
         type:'bar',
         data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:1})) },
         options:{
+          animation:false,
           responsive:true, maintainAspectRatio:false,
           plugins:{ legend:{labels:{color:'#cbd5e1'}} },
           scales:{
             x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}}
+            y:{beginAtZero:true, max: opts.yMaxLeft ?? undefined,
+               ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}}
           }
         }
       });
     }
 
-    function drawBarLine(id, labels, datasets){
+    function drawBarLine(id, labels, datasets, opts={}){
       if(charts[id]){ charts[id].destroy(); delete charts[id]; }
       charts[id] = new Chart(document.getElementById(id),{
         data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:2, tension:.25, pointRadius:2})) },
         options:{
+          animation:false,
           responsive:true, maintainAspectRatio:false,
           plugins:{ legend:{labels:{color:'#cbd5e1'}} },
           scales:{
             x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y:{position:'left',ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y1:{position:'right',ticks:{color:'#9ca3af',callback:v=>v+'%'},grid:{drawOnChartArea:false}}
+            y:{position:'left', beginAtZero:true, max: opts.yMaxLeft ?? undefined,
+               ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
+            y1:{position:'right', min:0, max:120,
+                ticks:{color:'#9ca3af', callback:v=>v+'%'},
+                grid:{drawOnChartArea:false}}
           }
         }
       });
@@ -224,29 +246,46 @@
       const g = Object.values(VIEW.reduce((a,r)=>{
         const k=r.type||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
       },{}));
-      const labels=g.map(x=>x.key), targets=g.map(x=>x.target), actuals=g.map(x=>x.actual), pct=g.map(x=>x.target? x.actual/x.target*100:0);
+      const labels=g.map(x=>x.key),
+            targets=g.map(x=>x.target),
+            actuals=g.map(x=>x.actual),
+            pct=g.map(x=>x.target? x.actual/x.target*100:0);
+
+      if (YMAX_TYPE === null) {
+        const peak = Math.max(1, ...targets, ...actuals);
+        YMAX_TYPE = niceMax(peak);
+      }
+
       drawBarLine('typeChart', labels, [
         {label:'Target', data:targets, type:'bar'},
         {label:'Actual', data:actuals, type:'bar'},
         {label:'Achievement %', data:pct, type:'line', yAxisID:'y1'}
-      ]);
+      ], { yMaxLeft: YMAX_TYPE });
     }
 
     function renderDailyChart(){
       const g = Object.values(VIEW.reduce((a,r)=>{
         const k=r.dateISO||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
       },{})).sort((x,y)=>x.key.localeCompare(y.key));
+
+      if (YMAX_DAILY === null) {
+        const dailyPeaks = g.map(x=>Math.max(x.target, x.actual));
+        YMAX_DAILY = niceMax(Math.max(1, ...dailyPeaks));
+      }
+
       drawBar('dailyChart', g.map(x=>x.key), [
         {label:'Target', data:g.map(x=>x.target)},
         {label:'Actual', data:g.map(x=>x.actual)}
-      ]);
+      ], { yMaxLeft: YMAX_DAILY });
     }
 
     function renderChannelChart(){
       const g = Object.values(VIEW.reduce((a,r)=>{
         const k=r.channel||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
       },{}));
-      drawBar('channelChart', g.map(x=>x.key), [{label:'Achievement %', data:g.map(x=>x.target?x.actual/x.target*100:0)}]);
+      drawBar('channelChart', g.map(x=>x.key), [
+        {label:'Achievement %', data:g.map(x=>x.target?x.actual/x.target*100:0)}
+      ], { yMaxLeft: 100 }); // ไม่จำเป็นจริง ๆ เพราะเป็น %
     }
 
     function renderTable(){
@@ -263,8 +302,19 @@
     function renderAll(){ renderKPI(); renderBranchSummary(); renderTypeChart(); renderDailyChart(); renderChannelChart(); renderTable(); }
 
     // ---------- INIT ----------
-    document.getElementById('applyBtn').addEventListener('click',applyFilters);
-    document.getElementById('resetBtn').addEventListener('click',()=>{branchFilter.value='';typeFilter.value='';dateFrom.value='';dateTo.value='';VIEW=RAW.slice();renderAll();});
+    document.getElementById('applyBtn').addEventListener('click', ()=>{
+      // รีล็อก y-axis เมื่อผู้ใช้เปลี่ยนช่วงฟิลเตอร์เท่านั้น
+      YMAX_TYPE = null;
+      YMAX_DAILY = null;
+      applyFilters();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      branchFilter.value=''; typeFilter.value='';
+      dateFrom.value=''; dateTo.value='';
+      YMAX_TYPE = null; YMAX_DAILY = null;
+      VIEW = RAW.slice(); renderAll();
+    });
 
     (async function init(){
       try{
