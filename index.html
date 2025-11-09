@@ -2,326 +2,382 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily Sales Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Sales Dashboard (Google Sheets)</title>
+
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
   <style>
-    :root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--accent:#22c55e;--warn:#f59e0b;--danger:#ef4444;--border:#1f2937}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#0b1224,#0f172a);color:var(--text)}
-    .wrap{max-width:1200px;margin:32px auto;padding:0 16px}
-    header{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:20px}
-    h1{font-size:22px;margin:0;font-weight:700}
-    .filters{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;width:100%}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
-    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-    .kpi .value{font-size:28px;font-weight:700}.kpi .label{color:var(--muted);font-size:12px}
-    .row{display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin-top:12px}
-    .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-    select,input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:#0b1020;color:var(--text)}
-    button{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#1f2937;color:var(--text);cursor:pointer;font-weight:600}
-    button:hover{filter:brightness(1.1)}
-    .progress{height:12px;background:#0b1020;border-radius:999px;overflow:hidden;border:1px solid var(--border)}
-    .progress>span{display:block;height:100%}
-    .legend{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px}
-    .legend .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
-    th{color:#cbd5e1;font-weight:600;font-size:13px}
-    .footer{color:var(--muted);font-size:12px;margin-top:14px}
-    canvas{width:100% !important;} /* กันกราฟ re-layout จาก container */
-    @media (max-width:960px){.cards{grid-template-columns:1fr 1fr}.row,.row-2{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}}
+    :root{ color-scheme: dark; }
+    body { background:#0f172a; color:#E5E7EB; }
+    .card { background:#0b1223; border:1px solid rgba(255,255,255,.06); border-radius:16px; }
+    .kpi { font-variation-settings:"wght" 700; }
+    .progress-outer{ height:14px; background:#1f2937; border-radius:999px; overflow:hidden;}
+    .progress-inner{ height:100%; background:#ef4444; }
+    .small{ font-size:12px; color:#9CA3AF; }
+    .pill{ padding:.25rem .5rem; border-radius:999px; background:#111827; border:1px solid rgba(255,255,255,.08); }
+    .ghost-input{ background:#0b1223; border:1px solid rgba(255,255,255,.12); color:#E5E7EB; border-radius:.6rem; padding:.55rem .75rem;}
+    .grid-autofill{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;}
+    a { color:#60A5FA; }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <header>
-      <h1>Daily Sales Dashboard</h1>
-      <div class="legend" title="Target vs Actual">
-        <span class="dot" style="background:var(--accent)"></span>≥100%
-        <span class="dot" style="background:var(--warn)"></span>80–99%
-        <span class="dot" style="background:var(--danger)"></span>&lt;80%
-      </div>
-      <div class="filters card">
-        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date From</label><input type="date" id="dateFrom"></div>
-        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Date To</label><input type="date" id="dateTo"></div>
-        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Branch</label><select id="branchFilter"><option value="">All</option></select></div>
-        <div><label style="display:block;color:var(--muted);font-size:12px;margin-bottom:6px">Channel Type</label><select id="typeFilter"><option value="">All</option></select></div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <button id="applyBtn">Apply</button>
-          <button id="resetBtn">Reset</button>
-        </div>
-      </div>
-    </header>
-
-    <section class="cards">
-      <div class="card kpi"><div class="label">Total Target</div><div id="kpiTarget" class="value">-</div></div>
-      <div class="card kpi"><div class="label">Total Actual</div><div id="kpiActual" class="value">-</div></div>
-      <div class="card kpi"><div class="label">Achievement</div><div id="kpiAchv" class="value">-</div></div>
-      <div class="card kpi"><div class="label">Records</div><div id="kpiRows" class="value">-</div></div>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <h3 style="margin:0 0 10px 0">การบรรลุเป้าหมายรายสาขา (Visual Summary)</h3>
-      <div id="branchSummary"></div>
-    </section>
-
-    <div class="row">
-      <section class="card"><h3 style="margin:0 0 10px 0">Achievement ตามประเภทช่องทาง</h3><canvas id="typeChart" height="220"></canvas></section>
-      <section class="card"><h3 style="margin:0 0 10px 0">สรุปภาพรวมรายวัน</h3><canvas id="dailyChart" height="220"></canvas></section>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex items-center gap-3 mb-6">
+      <h1 class="text-2xl md:text-3xl font-semibold">Daily Sales Dashboard</h1>
+      <span class="pill small">Google Sheet → dailysale</span>
     </div>
 
-    <div class="row-2">
-      <section class="card"><h3 style="margin:0 0 10px 0">Achievement แยกตามช่องทาง</h3><canvas id="channelChart" height="240"></canvas></section>
-      <section class="card">
-        <h3 style="margin:0 0 10px 0">ข้อมูล (หลังกรอง)</h3>
-        <div style="overflow:auto;max-height:360px">
-          <table id="dataTable">
-            <thead><tr><th>วันที่</th><th>branch</th><th>channel</th><th>channel_type</th><th>target</th><th>actual</th><th>achievement</th></tr></thead>
-            <tbody></tbody>
-          </table>
+    <!-- Filters -->
+    <div class="card p-4 mb-6">
+      <div class="grid md:grid-cols-5 gap-4 items-end">
+        <div>
+          <label class="block small mb-1">ตั้งแต่วันที่ (mm/dd/yyyy)</label>
+          <input id="fromDate" class="ghost-input w-full" type="date" />
         </div>
-        <div class="footer" id="lastUpdate"></div>
-      </section>
+        <div>
+          <label class="block small mb-1">ถึงวันที่ (mm/dd/yyyy)</label>
+          <input id="toDate" class="ghost-input w-full" type="date" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block small mb-1">สาขา (Branch)</label>
+          <select id="branchSelect" class="ghost-input w-full">
+            <option value="__all__">All</option>
+          </select>
+        </div>
+        <div class="flex gap-3">
+          <button id="applyBtn" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500">Apply</button>
+          <button id="resetBtn" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid-autofill mb-6">
+      <div class="card p-5">
+        <div class="small mb-1">Total Target</div>
+        <div id="kpiTarget" class="text-3xl kpi">-</div>
+      </div>
+      <div class="card p-5">
+        <div class="small mb-1">Total Actual</div>
+        <div id="kpiActual" class="text-3xl kpi">-</div>
+      </div>
+      <div class="card p-5">
+        <div class="small mb-1">Achievement</div>
+        <div id="kpiAch" class="text-3xl kpi">-</div>
+      </div>
+      <div class="card p-5">
+        <div class="small mb-1">Records</div>
+        <div id="kpiRecords" class="text-3xl kpi">-</div>
+      </div>
+    </div>
+
+    <!-- Visual summary per branch -->
+    <div class="card p-5 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">การบรรลุเป้าหมายรายสาขา (Visual Summary)</h2>
+        <span id="legend" class="small">แถบ = Actual / Target</span>
+      </div>
+      <div id="branchBars" class="space-y-4"></div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="grid md:grid-cols-2 gap-6 mb-10">
+      <div class="card p-5">
+        <h3 class="text-lg font-semibold mb-3">สรุปภาพรวม (Overall KPI)</h3>
+        <canvas id="overallChart" height="160"></canvas>
+      </div>
+      <div class="card p-5">
+        <h3 class="text-lg font-semibold mb-3">Achievement ตามประเภทช่องทาง (Channel Type KPI)</h3>
+        <canvas id="channelTypeChart" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Channel breakdown -->
+    <div class="card p-5">
+      <h3 class="text-lg font-semibold mb-3">Achievement แยกตามช่องทาง (Channel Breakdown)</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="text-left border-b border-white/10">
+              <th class="py-2 pr-4">Channel</th>
+              <th class="py-2 pr-4">Target</th>
+              <th class="py-2 pr-4">Actual</th>
+              <th class="py-2 pr-4">Achievement %</th>
+              <th class="py-2">Records</th>
+            </tr>
+          </thead>
+          <tbody id="channelBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="small mt-6 opacity-70">
+      แหล่งข้อมูล: Google Sheets – 
+      <a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M/edit?gid=0#gid=0">เปิดดูชีต</a>
     </div>
   </div>
 
   <script>
-    // ---------- CONFIG ----------
-    const SPREADSHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
-    const SHEET_NAME     = 'dailysale'; // Share: Anyone with the link (Viewer)
-    dayjs.extend(dayjs_plugin_customParseFormat);
-
-    // ---------- UTIL ----------
-    const parseNum = v => (v==null) ? 0 : (typeof v==='number'? v : (Number(String(v).replace(/,/g,'').trim()) || 0));
-    const fmtNum = n => n.toLocaleString(undefined,{maximumFractionDigits:2});
-    const ratio = (a,b) => b===0 ? 0 : a/b;
-    const achvColor = p => p>=1 ? 'var(--accent)' : (p>=0.8 ? 'var(--warn)' : 'var(--danger)');
-
-    // ====== FREEZE SETTINGS ======
-    let YMAX_TYPE = null;   // y-left of Type chart
-    let YMAX_DAILY = null;  // y-left of Daily chart
-    const EXCLUDE_TODAY = false; // true = ตัดข้อมูลวันนี้ออก
-    const niceMax = (n)=> {
-      if (!isFinite(n) || n <= 0) return 1;
-      const p = 10 ** Math.floor(Math.log10(n));
-      return Math.ceil((n * 1.1) / p); // ปัดขึ้นแบบเผื่อ 10%
+    // ========= CONFIG =========
+    const SHEET_ID = "11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M";
+    const SHEET_NAME = "dailysale"; // sheet tab
+    // จับคู่ชื่อคอลัมน์ที่เป็นไปได้ (เพิ่ม/แก้ได้)
+    const POSSIBLE_COL_NAMES = {
+      date: ["date","วันที่","docdate","transdate"],
+      branch: ["branch","สาขา"],
+      channel: ["channel type","channel","ประเภทช่องทาง"],
+      target: ["target","ยอดเป้า","plan","goal"],
+      actual: ["actual","ยอดจริง","sale","sales","revenue"]
     };
 
-    // ---------- GViz fetch ----------
-    async function fetchGViz(sheetName){
-      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      const text = await res.text();
-      if (!text.includes('google.visualization')) {
-        throw new Error('โหลดชีทไม่สำเร็จ (สิทธิ์/ชื่อชีต) : ' + text.slice(0,160));
-      }
-      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-      const cols = json.table.cols.map(c => c.label || c.id);
-      const rows = (json.table.rows||[]).map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? '') : ''));
-      return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
+    // ========= UTIL =========
+    const fmt = new Intl.NumberFormat("en-US",{maximumFractionDigits:2});
+    const pct = (n)=> (isFinite(n)? (n*100).toFixed(1)+"%":"-");
+    const keyOf = (obj)=> Object.keys(obj);
+
+    function parseGViz(text){
+      // gviz returns: google.visualization.Query.setResponse({...});
+      const json = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}")+1));
+      return json.table;
     }
 
-    // ---------- normalize ----------
-    function normalizeRow(obj){
-      const rawDate = obj['วันที่'] || obj['date'] || obj['Date'] || '';
-      let dateISO = '';
-      if (typeof rawDate === 'string') {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) dateISO = rawDate;
-        else {
-          const d = dayjs(rawDate, ['M/D/YYYY','D/M/YYYY','DD/MM/YYYY','YYYY-MM-DD'], true);
-          if (d.isValid()) dateISO = d.format('YYYY-MM-DD');
-        }
-      }
-      const target = parseNum(obj['daily_target_litre'] ?? obj['target']);
-      const actual = parseNum(obj['actual_litre'] ?? obj['goal'] ?? obj['actual']);
-      return {
-        dateISO,
-        branch: (obj['branch'] ?? '').toString(),
-        channel: (obj['channel'] ?? '').toString(),
-        type: (obj['channel_type'] ?? '').toString(),
-        target, actual, achv: ratio(actual, target)
+    function guessColumns(cols){
+      const idx = {};
+      const find = (wantList)=>{
+        wantList = wantList.map(s=>s.toLowerCase());
+        let hit = -1;
+        cols.forEach((c,i)=>{
+          const name = (c.label||c.id||"").toLowerCase().trim();
+          if (wantList.some(w => name.includes(w)) && hit === -1) hit = i;
+        });
+        return hit;
       };
+      idx.date   = find(POSSIBLE_COL_NAMES.date);
+      idx.branch = find(POSSIBLE_COL_NAMES.branch);
+      idx.channel= find(POSSIBLE_COL_NAMES.channel);
+      idx.target = find(POSSIBLE_COL_NAMES.target);
+      idx.actual = find(POSSIBLE_COL_NAMES.actual);
+      return idx;
     }
 
-    // ---------- State ----------
-    let RAW=[], VIEW=[], charts={};
-
-    function hydrateFilters(){
-      const branches = [...new Set(RAW.map(r=>r.branch))].sort();
-      const types    = [...new Set(RAW.map(r=>r.type))].sort();
-      branchFilter.innerHTML = '<option value="">All</option>'+branches.map(b=>`<option value="${b}">${b}</option>`).join('');
-      typeFilter.innerHTML   = '<option value="">All</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
-      const minD = RAW.reduce((m,r)=>!m||r.dateISO<m? r.dateISO:m, null);
-      const maxD = RAW.reduce((m,r)=>!m||r.dateISO>m? r.dateISO:m, null);
-      dateFrom.value=minD||''; dateTo.value=maxD||'';
+    function parseDateCell(v){
+      if (!v) return null;
+      if (v instanceof Date) return v;
+      if (typeof v === "string" && /^Date\(\d+,\d+,\d+/.test(v)){
+        const m = v.match(/Date\((\d+),(\d+),(\d+)/);
+        if (m) return new Date(+m[1], +m[2], +m[3]);
+      }
+      const d = new Date(v);
+      return isNaN(+d)? null : d;
     }
+
+    function groupBy(arr, keyFn){
+      const m = new Map();
+      arr.forEach(o=>{
+        const k = keyFn(o);
+        if(!m.has(k)) m.set(k, []);
+        m.get(k).push(o);
+      });
+      return m;
+    }
+
+    function sum(arr, fn){ return arr.reduce((a,b)=>a+(+fn(b)||0),0); }
+
+    // ========= LOAD =========
+    async function loadSheet(){
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tqx=out:json`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const table = parseGViz(text);
+
+      const colIdx = guessColumns(table.cols);
+      const rows = table.rows.map(r=>{
+        const c = r.c;
+        return {
+          date  : parseDateCell(c[colIdx.date]?.v),
+          branch: (c[colIdx.branch]?.v ?? "").toString().trim(),
+          channel: (c[colIdx.channel]?.v ?? "").toString().trim(),
+          target: +((c[colIdx.target]?.v ?? 0) || 0),
+          actual: +((c[colIdx.actual]?.v ?? 0) || 0),
+          _raw: r
+        };
+      }).filter(x => x.date); // keep only valid dates
+
+      return rows;
+    }
+
+    // ========= STATE =========
+    let RAW = [];
+    let overallChart, channelTypeChart;
 
     function applyFilters(){
-      const f=dateFrom.value, t=dateTo.value, b=branchFilter.value, ty=typeFilter.value;
-      const todayISO = dayjs().format('YYYY-MM-DD');
+      const f = document.getElementById("fromDate").value;
+      const t = document.getElementById("toDate").value;
+      const b = document.getElementById("branchSelect").value;
 
-      VIEW = RAW.filter(r=>{
-        if (EXCLUDE_TODAY && r.dateISO === todayISO) return false;
-        if (f && r.dateISO<f) return false;
-        if (t && r.dateISO>t) return false;
-        if (b && r.branch!==b) return false;
-        if (ty && r.type!==ty) return false;
-        return true;
-      });
+      let data = RAW.slice();
 
-      renderAll();
+      if (f){
+        const fd = new Date(f+"T00:00:00");
+        data = data.filter(x=> x.date >= fd);
+      }
+      if (t){
+        const td = new Date(t+"T23:59:59");
+        data = data.filter(x=> x.date <= td);
+      }
+      if (b && b !== "__all__"){
+        data = data.filter(x=> x.branch === b);
+      }
+
+      renderAll(data);
     }
 
-    function sum(arr,key){ return arr.reduce((s,x)=>s+(x[key]||0),0); }
-
-    function renderKPI(){
-      const tgt=sum(VIEW,'target'), act=sum(VIEW,'actual'), ach=ratio(act,tgt);
-      kpiTarget.textContent = fmtNum(tgt);
-      kpiActual.textContent = fmtNum(act);
-      kpiAchv.textContent   = (ach*100).toFixed(1)+'%';
-      kpiRows.textContent   = fmtNum(VIEW.length);
+    function resetFilters(){
+      document.getElementById("fromDate").value = "";
+      document.getElementById("toDate").value = "";
+      document.getElementById("branchSelect").value = "__all__";
+      renderAll(RAW);
     }
 
-    function renderBranchSummary(){
-      const box = document.getElementById('branchSummary'); box.innerHTML='';
-      const byB = VIEW.reduce((a,r)=>((a[r.branch]=a[r.branch]||[]).push(r),a),{});
-      Object.keys(byB).sort().forEach(br=>{
-        const tgt=sum(byB[br],'target'), act=sum(byB[br],'actual'), p=ratio(act,tgt);
-        const row=document.createElement('div'); row.style.margin='10px 0';
+    // ========= RENDER =========
+    function renderKPIs(data){
+      const tgt = sum(data, d=>d.target);
+      const act = sum(data, d=>d.actual);
+      const ach = tgt ? (act/tgt) : 0;
+      document.getElementById("kpiTarget").textContent = fmt.format(tgt);
+      document.getElementById("kpiActual").textContent = fmt.format(act);
+      document.getElementById("kpiAch").textContent    = pct(ach);
+      document.getElementById("kpiRecords").textContent= fmt.format(data.length);
+    }
+
+    function renderBranchBars(data){
+      const wrap = document.getElementById("branchBars");
+      wrap.innerHTML = "";
+      const byB = groupBy(data, d=>d.branch);
+      [...byB.entries()].sort((a,b)=> a[0].localeCompare(b[0])).forEach(([branch, arr])=>{
+        const tgt = sum(arr, d=>d.target);
+        const act = sum(arr, d=>d.actual);
+        const ratio = tgt ? Math.min(act/tgt, 1) : 0;
+        const row = document.createElement("div");
         row.innerHTML = `
-          <div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px">
-            <span>${br}</span><span>${fmtNum(act)} / ${fmtNum(tgt)} • ${(p*100).toFixed(1)}%</span>
+          <div class="flex items-center justify-between mb-1">
+            <div class="font-medium">${branch || "-"}</div>
+            <div class="small">${fmt.format(act)} / ${fmt.format(tgt)} • ${pct(tgt?act/tgt:0)}</div>
           </div>
-          <div class="progress"><span style="width:${Math.min(100,p*100)}%;background:${achvColor(p)}"></span></div>`;
-        box.appendChild(row);
+          <div class="progress-outer"><div class="progress-inner" style="width:${ratio*100}%"></div></div>
+        `;
+        wrap.appendChild(row);
       });
-      if (!Object.keys(byB).length) box.innerHTML = '<div style="color:var(--muted)">No data</div>';
     }
 
-    // Draw helpers: responsive=false + devicePixelRatio=1 + animation=false
-    function drawBar(id, labels, datasets, opts={}){
-      if(charts[id]){ charts[id].destroy(); delete charts[id]; }
-      charts[id] = new Chart(document.getElementById(id),{
-        type:'bar',
-        data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:1})) },
+    function upsertChart(canvasId, cfg, currentRef){
+      const ctx = document.getElementById(canvasId);
+      if (currentRef) currentRef.destroy();
+      return new Chart(ctx, cfg);
+    }
+
+    function renderOverallChart(data){
+      const tgt = sum(data, d=>d.target);
+      const act = sum(data, d=>d.actual);
+      const ach = tgt? (act/tgt*100) : 0;
+
+      const cfg = {
+        type: "bar",
+        data: {
+          labels: ["Target","Actual","Achievement %"],
+          datasets: [{
+            label: "Overall",
+            data: [tgt, act, ach],
+          }]
+        },
         options:{
-          responsive:false,
-          devicePixelRatio:1,
-          animation:false,
-          maintainAspectRatio:false,
-          plugins:{ legend:{labels:{color:'#cbd5e1'}} },
+          responsive:true,
+          plugins:{ legend:{display:false}},
           scales:{
-            x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y:{beginAtZero:true, max: opts.yMaxLeft ?? undefined,
-               ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}}
+            y:{ beginAtZero:true }
           }
         }
-      });
+      };
+      overallChart = upsertChart("overallChart", cfg, overallChart);
     }
 
-    function drawBarLine(id, labels, datasets, opts={}){
-      if(charts[id]){ charts[id].destroy(); delete charts[id]; }
-      charts[id] = new Chart(document.getElementById(id),{
-        data:{ labels, datasets: datasets.map(d=>({...d, borderWidth:2, tension:.25, pointRadius:2})) },
+    function renderChannelTypeChart(data){
+      const byC = groupBy(data, d=> d.channel || "-");
+      const labels = [];
+      const achs = [];
+      [...byC.entries()].forEach(([ch, arr])=>{
+        const tgt = sum(arr,d=>d.target);
+        const act = sum(arr,d=>d.actual);
+        labels.push(ch);
+        achs.push( tgt ? act/tgt*100 : 0 );
+      });
+
+      const cfg = {
+        type:"bar",
+        data:{ labels, datasets:[{ label:"Achievement %", data:achs }]},
         options:{
-          responsive:false,
-          devicePixelRatio:1,
-          animation:false,
-          maintainAspectRatio:false,
-          plugins:{ legend:{labels:{color:'#cbd5e1'}} },
+          responsive:true,
+          plugins:{ legend:{display:false}},
           scales:{
-            x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y:{position:'left', beginAtZero:true, max: opts.yMaxLeft ?? undefined,
-               ticks:{color:'#9ca3af'},grid:{color:'rgba(255,255,255,.05)'}},
-            y1:{position:'right', min:0, max:120,
-                ticks:{color:'#9ca3af', callback:v=>v+'%'},
-                grid:{drawOnChartArea:false}}
+            y:{ beginAtZero:true, ticks:{ callback:(v)=> v+"%"}}
           }
         }
+      };
+      channelTypeChart = upsertChart("channelTypeChart", cfg, channelTypeChart);
+    }
+
+    function renderChannelBreakdown(data){
+      const body = document.getElementById("channelBody");
+      body.innerHTML = "";
+      const byC = groupBy(data, d=> d.channel || "-");
+      const rows = [...byC.entries()].map(([ch, arr])=>{
+        const tgt = sum(arr,d=>d.target);
+        const act = sum(arr,d=>d.actual);
+        const ach = tgt ? (act/tgt) : 0;
+        return { ch, tgt, act, ach, n: arr.length };
+      }).sort((a,b)=> a.ch.localeCompare(b.ch));
+
+      rows.forEach(r=>{
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-white/5";
+        tr.innerHTML = `
+          <td class="py-2 pr-4">${r.ch}</td>
+          <td class="py-2 pr-4">${fmt.format(r.tgt)}</td>
+          <td class="py-2 pr-4">${fmt.format(r.act)}</td>
+          <td class="py-2 pr-4">${pct(r.ach)}</td>
+          <td class="py-2">${r.n}</td>
+        `;
+        body.appendChild(tr);
       });
     }
 
-    function renderTypeChart(){
-      const g = Object.values(VIEW.reduce((a,r)=>{
-        const k=r.type||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
-      },{}));
-      const labels=g.map(x=>x.key),
-            targets=g.map(x=>x.target),
-            actuals=g.map(x=>x.actual),
-            pct=g.map(x=>x.target? x.actual/x.target*100:0);
-
-      if (YMAX_TYPE === null) {
-        YMAX_TYPE = niceMax(Math.max(1, ...targets, ...actuals));
-      }
-
-      drawBarLine('typeChart', labels, [
-        {label:'Target', data:targets, type:'bar'},
-        {label:'Actual', data:actuals, type:'bar'},
-        {label:'Achievement %', data:pct, type:'line', yAxisID:'y1'}
-      ], { yMaxLeft: YMAX_TYPE });
+    function renderBranchOptions(){
+      const sel = document.getElementById("branchSelect");
+      const branches = [...new Set(RAW.map(x=>x.branch))].filter(Boolean).sort();
+      sel.innerHTML = `<option value="__all__">All</option>` + 
+        branches.map(b=> `<option value="${b}">${b}</option>`).join("");
     }
 
-    function renderDailyChart(){
-      const g = Object.values(VIEW.reduce((a,r)=>{
-        const k=r.dateISO||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
-      },{})).sort((x,y)=>x.key.localeCompare(y.key));
-
-      if (YMAX_DAILY === null) {
-        const dailyPeaks = g.map(x=>Math.max(x.target, x.actual));
-        YMAX_DAILY = niceMax(Math.max(1, ...dailyPeaks));
-      }
-
-      drawBar('dailyChart', g.map(x=>x.key), [
-        {label:'Target', data:g.map(x=>x.target)},
-        {label:'Actual', data:g.map(x=>x.actual)}
-      ], { yMaxLeft: YMAX_DAILY });
+    function renderAll(data){
+      renderKPIs(data);
+      renderBranchBars(data);
+      renderOverallChart(data);
+      renderChannelTypeChart(data);
+      renderChannelBreakdown(data);
     }
 
-    function renderChannelChart(){
-      const g = Object.values(VIEW.reduce((a,r)=>{
-        const k=r.channel||''; (a[k]=a[k]||{key:k,target:0,actual:0}); a[k].target+=r.target; a[k].actual+=r.actual; return a;
-      },{}));
-      drawBar('channelChart', g.map(x=>x.key), [
-        {label:'Achievement %', data:g.map(x=>x.target?x.actual/x.target*100:0)}
-      ], { yMaxLeft: 100 }); // แกนซ้ายไม่สำคัญเพราะเป็น %
-    }
-
-    function renderTable(){
-      const tb=document.querySelector('#dataTable tbody');
-      tb.innerHTML = VIEW.map(r=>`
-        <tr>
-          <td>${r.dateISO}</td><td>${r.branch}</td><td>${r.channel}</td><td>${r.type}</td>
-          <td style="text-align:right">${fmtNum(r.target)}</td>
-          <td style="text-align:right">${fmtNum(r.actual)}</td>
-          <td style="text-align:right">${(r.achv*100).toFixed(1)}%</td>
-        </tr>`).join('');
-    }
-
-    function renderAll(){ renderKPI(); renderBranchSummary(); renderTypeChart(); renderDailyChart(); renderChannelChart(); renderTable(); }
-
-    // ---------- INIT ----------
-    document.getElementById('applyBtn').addEventListener('click', applyFilters);
-    document.getElementById('resetBtn').addEventListener('click', ()=>{
-      branchFilter.value=''; typeFilter.value='';
-      dateFrom.value=''; dateTo.value='';
-      applyFilters(); // ไม่รีเซ็ต YMAX_* เพื่อให้คงสเกลเดิม
-    });
-
+    // ========= INIT =========
     (async function init(){
-      try{
-        const rawRows = await fetchGViz(SHEET_NAME);
-        RAW = rawRows.map(normalizeRow).filter(r=>r.dateISO && r.branch);
-        document.getElementById('lastUpdate').textContent = 'Last update: ' + new Date().toLocaleString();
-        hydrateFilters(); applyFilters();
-      }catch(err){
-        console.error(err);
-        alert('โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ:\n' + (err.message || err));
-      }
+      RAW = await loadSheet();
+      renderBranchOptions();
+      renderAll(RAW);
+
+      document.getElementById("applyBtn").addEventListener("click", applyFilters);
+      document.getElementById("resetBtn").addEventListener("click", resetFilters);
     })();
   </script>
 </body>
