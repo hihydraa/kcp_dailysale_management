@@ -6,11 +6,11 @@
   <title>Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    .badge { @apply text-xs font-semibold px-2 py-1 rounded; }
-  </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
+  <!-- ALERT AREA -->
+  <div id="alert" class="hidden mb-4 p-3 rounded border bg-red-50 text-red-700 border-red-200"></div>
+
   <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</h1>
   <p class="text-center text-gray-600 mb-4">ดึงข้อมูลจาก Google Sheet แบบ Real‑Time (Sheet: <code>dailysale</code>)</p>
 
@@ -126,13 +126,44 @@ const el = {
 const toNum = v => isNaN(+v)?0:+v;
 const fmt = n => (n||0).toLocaleString();
 const pct = (a,t)=>t?(a/t*100):0;
+const kpiBarColor = p => p<70?'bg-red-500':(p<90?'bg-yellow-500':'bg-green-500');
+const barColor = kpiBarColor;
 
-function barColor(p){ if(p<70)return'bg-red-500'; if(p<90)return'bg-yellow-500'; return'bg-green-500'; }
-function progressBar(p){ const capped=Math.max(0,Math.min(120,p)); return `<div class='relative' style='width:160px'><div class='h-2 bg-gray-200 rounded'><div class='h-2 ${barColor(p)} rounded' style='width:${Math.min(capped,100)}%'></div></div><div class='absolute top-1/2 -translate-y-1/2' style='left:100%'><div class='w-0.5 h-3 bg-gray-700'></div></div><div class='text-xs text-gray-600 mt-1'>${p.toFixed(1)}%</div></div>`; }
+// Helper: format date label on X axis -> DD/MMMM (e.g., 01/October)
+function formatDateLabel(dStr){
+  if(!dStr) return '';
+  const d = new Date(dStr);
+  if(isNaN(d)) return dStr;
+  const day = String(d.getDate()).padStart(2,'0');
+  const month = d.toLocaleString('en-US', { month: 'long' }); // change to 'th-TH' for Thai
+  return `${day}/${month}`;
+}
 
-function kpiColor(p){ if(p<70)return'bg-red-500'; if(p<90)return'bg-yellow-500'; return'bg-green-500'; }
+function progressBar(p){
+  const capped=Math.max(0,Math.min(120,p));
+  return `
+    <div class='relative' style='width:160px'>
+      <div class='h-2 bg-gray-200 rounded'>
+        <div class='h-2 ${barColor(p)} rounded' style='width:${Math.min(capped,100)}%'></div>
+      </div>
+      <div class='absolute top-1/2 -translate-y-1/2' style='left:100%'>
+        <div class='w-0.5 h-3 bg-gray-700'></div>
+      </div>
+      <div class='text-xs text-gray-600 mt-1'>${p.toFixed(1)}%</div>
+    </div>`;
+}
 
-function aggBy(keys){ const map=new Map(); for(const r of filtered){ const k=keys.map(k=>r[k]).join('|'); if(!map.has(k)) map.set(k,{...keys.reduce((o,k)=>(o[k]=r[k],o),{}),target:0,actual:0}); const o=map.get(k); o.target+=toNum(r.daily_target_litre); o.actual+=toNum(r.actual_litre);} return [...map.values()]; }
+function aggBy(keys){
+  const map=new Map();
+  for(const r of filtered){
+    const k=keys.map(k=>r[k]).join('|');
+    if(!map.has(k)) map.set(k,{...keys.reduce((o,k)=>(o[k]=r[k],o),{}),target:0,actual:0});
+    const o=map.get(k);
+    o.target+=toNum(r.daily_target_litre);
+    o.actual+=toNum(r.actual_litre);
+  }
+  return [...map.values()];
+}
 
 function applyFilters(){
   const s=el.startDate.value, e=el.endDate.value, b=el.branchSelect.value, t=el.typeSelect.value;
@@ -151,8 +182,10 @@ function resetFilters(){
 }
 
 function populateFilters(){
-  const branches=[...new Set(rawData.map(r=>r.branch))];
-  el.branchSelect.innerHTML='<option value="">ทั้งหมด</option>'+branches.map(b=>`<option>${b}</option>`).join('');
+  const prevBranch = el.branchSelect.value;
+  const branches = [...new Set(rawData.map(r=>r.branch))].filter(Boolean).sort();
+  el.branchSelect.innerHTML = '<option value="">ทั้งหมด</option>' +
+    branches.map(b=>`<option ${b===prevBranch?'selected':''}>${b}</option>`).join('');
 }
 
 function updateKPIs(){
@@ -162,14 +195,21 @@ function updateKPIs(){
   el.kpiTarget.textContent=fmt(totalTarget);
   el.kpiActual.textContent=fmt(totalActual);
   el.kpiAch.textContent=`${ach.toFixed(1)}%`;
-  el.kpiAchBar.className=`h-2 rounded ${kpiColor(ach)}`;
+  el.kpiAchBar.className=`h-2 rounded ${kpiBarColor(ach)}`;
   el.kpiAchBar.style.width=`${Math.min(ach,100)}%`;
 
   const byChannel=aggBy(['branch','channel','channel_type']);
   const below=byChannel.filter(x=>pct(x.actual,x.target)<70);
   el.kpiBelow.textContent=below.length;
   const branchesBelow=[...new Set(below.map(x=>x.branch))];
-  el.branchBelow.textContent=branchesBelow.length?branchesBelow.join(', '):'(ทุกสาขาเกิน 70%)';
+  if(branchesBelow.length){
+    // แสดง % รวมของแต่ละสาขาด้วย
+    const byBranch = aggBy(['branch']);
+    const map = new Map(byBranch.map(x=>[x.branch, (pct(x.actual,x.target)||0)]));
+    el.branchBelow.textContent = branchesBelow.map(b=>`${b} (${(map.get(b)||0).toFixed(1)}%)`).join(', ');
+  }else{
+    el.branchBelow.textContent='(ทุกสาขาเกิน 70%)';
+  }
 }
 
 function renderCharts(){ for(const k in charts){ charts[k].destroy(); } charts={};
@@ -182,20 +222,76 @@ function renderCharts(){ for(const k in charts){ charts[k].destroy(); } charts={
   const dataT=byType.map(x=>+(x.p.toFixed(1)));
   charts.type=new Chart(document.getElementById('typeChart').getContext('2d'),{type:'bar',data:{labels:labelsT,datasets:[{label:'% Achievement',data:dataT}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}});
   const byDate=(()=>{const m=new Map();for(const r of filtered){const k=r.date||'';if(!m.has(k))m.set(k,{date:k,target:0,actual:0});const o=m.get(k);o.target+=toNum(r.daily_target_litre);o.actual+=toNum(r.actual_litre);}return[...m.values()].sort((a,b)=>new Date(a.date)-new Date(b.date));})();
-  charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'line',data:{labels:byDate.map(x=>x.date),datasets:[{label:'Target',data:byDate.map(x=>x.target)},{label:'Actual',data:byDate.map(x=>x.actual)}]},options:{responsive:true}});
+  charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'line',data:{labels: byDate.map(x => formatDateLabel(x.date)),datasets:[{label:'Target',data:byDate.map(x=>x.target)},{label:'Actual',data:byDate.map(x=>x.actual)}]},options:{responsive:true}});
 }
 
 function renderTable(){ const tb=el.tblBody; tb.innerHTML=''; const rows=aggBy(['branch','channel','channel_type']).sort((a,b)=>(a.branch+a.channel).localeCompare(b.branch+b.channel)); for(const r of rows){ const p=pct(r.actual,r.target); const tr=document.createElement('tr'); tr.innerHTML=`<td class='border px-2 py-1'>${r.branch}</td><td class='border px-2 py-1'>${r.channel}</td><td class='border px-2 py-1'>${r.channel_type||''}</td><td class='border px-2 py-1 text-right'>${fmt(r.target)}</td><td class='border px-2 py-1 text-right'>${fmt(r.actual)}</td><td class='border px-2 py-1 text-right'>${p.toFixed(1)}%</td><td class='border px-2 py-1'>${progressBar(p)}</td>`; tb.appendChild(tr);} }
 
 function refresh(){ updateKPIs(); renderCharts(); renderTable(); }
 
-async function loadFromGViz(){ const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tq=${encodeURIComponent('select *')}`; const resp=await fetch(url); const text=await resp.text(); const json=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1)); const cols=(json.table.cols||[]).map(c=>c.label||c.id); const rows=(json.table.rows||[]).map(r=>{const o={};(r.c||[]).forEach((cell,i)=>{o[cols[i]||`col${i}`]=cell?(cell.v??''):'';});return o;}); normalizeAndSet(rows); }
+// ---- GViz Loader with error handling ----
+async function loadFromGViz(){
+  try{
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tq=${encodeURIComponent('select *')}&tqx=out:json`;
+    const resp = await fetch(url, { cache: 'no-store' });
+    if(!resp.ok){ throw new Error(`HTTP ${resp.status} ${resp.statusText}`); }
+    const text = await resp.text();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if(start<0 || end<0){ throw new Error('GViz returned unexpected format'); }
+    const json = JSON.parse(text.substring(start, end + 1));
+    const cols = (json.table.cols || []).map(c => (c.label || c.id || '').toString().trim());
+    const rows = (json.table.rows || []).map(r => {
+      const o = {};
+      (r.c || []).forEach((cell, i) => {
+        const val = cell ? (cell.f ?? cell.v ?? '') : '';
+        o[cols[i] || `col${i}`] = val;
+      });
+      return o;
+    });
+    hideAlert();
+    normalizeAndSet(rows);
+  }catch(err){
+    console.error('[GViz] load error:', err);
+    showAlert(`ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: ${err.message} \nตรวจสอบว่า: 1) Sheet ID ถูกต้อง, 2) ชื่อแท็บเป็น "${SHEET_NAME}", 3) เปิดสิทธิ์เป็น Anyone with the link / Published to web`);
+  }
+}
 
-function normalizeAndSet(json){ const mapKey=k=>(k||'').toString().trim().toLowerCase(); rawData=json.map(r=>({ date:r.date||r.Date||r.วันที่||r[Object.keys(r).find(k=>mapKey(k)==='date')]||'', branch:r.branch||r.Branch||r.สาขา||r[Object.keys(r).find(k=>mapKey(k)==='branch')]||'', channel:r.channel||r.Channel||r.ช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel')]||'', channel_type:r.channel_type||r.Channel_type||r.ประเภทช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel_type')]||'', daily_target_litre:toNum(r.daily_target_litre??r.target??r.Target??r.เป้าหมาย??r['daily_target_litre']), actual_litre:toNum(r.actual_litre??r.actual??r.Actual??r.ยอดขาย??r['actual_litre']) })); filtered=[...rawData]; populateFilters(); refresh(); }
+function normalizeAndSet(json){
+  const mapKey=k=>(k||'').toString().trim().toLowerCase();
+  const parseDate = (v)=>{
+    if(!v) return '';
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(v)) return v;
+    const d = new Date(v);
+    if(!isNaN(d.getTime())){
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+    return v;
+  };
 
+  rawData = json.map(r=>({
+    date: parseDate(r.date||r.Date||r.วันที่||r[Object.keys(r).find(k=>mapKey(k)==='date')]||''),
+    branch: r.branch||r.Branch||r.สาขา||r[Object.keys(r).find(k=>mapKey(k)==='branch')]||'',
+    channel: r.channel||r.Channel||r.ช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel')]||'',
+    channel_type: r.channel_type||r.Channel_type||r.ประเภทช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel_type')]||'',
+    daily_target_litre: toNum(r.daily_target_litre??r.target??r.Target??r.เป้าหมาย??r['daily_target_litre']),
+    actual_litre: toNum(r.actual_litre??r.actual??r.Actual??r.ยอดขาย??r['actual_litre'])
+  }));
+  populateFilters();
+  applyFilters();
+}
+
+// ---- Alert helpers ----
+function showAlert(msg){ const a=document.getElementById('alert'); a.textContent=msg; a.classList.remove('hidden'); }
+function hideAlert(){ const a=document.getElementById('alert'); a.classList.add('hidden'); a.textContent=''; }
+
+// Events
 el.filterBtn.addEventListener('click',applyFilters);
 el.resetBtn.addEventListener('click',resetFilters);
 
+// Init
 (async function init(){ await loadFromGViz(); setInterval(loadFromGViz,15000); })();
 </script>
 </body>
