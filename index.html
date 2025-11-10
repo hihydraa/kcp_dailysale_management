@@ -123,7 +123,17 @@ const el = {
   tblBody: document.getElementById('tblBody')
 };
 
-const toNum = v => isNaN(+v)?0:+v;
+// Robust number parser: supports numbers and strings with commas
+const toNum = (v) => {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const s = v.replace(/,/g,'').trim();
+    const n = Number(s);
+    return isNaN(n) ? 0 : n;
+  }
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+};
 const fmt = n => (n||0).toLocaleString();
 const pct = (a,t)=>t?(a/t*100):0;
 const kpiBarColor = p => p<70?'bg-red-500':(p<90?'bg-yellow-500':'bg-green-500');
@@ -244,7 +254,14 @@ async function loadFromGViz(){
     const rows = (json.table.rows || []).map(r => {
       const o = {};
       (r.c || []).forEach((cell, i) => {
-        const val = cell ? (cell.f ?? cell.v ?? '') : '';
+        let val;
+      if (cell && typeof cell.v === 'number') {
+        val = cell.v; // use raw number
+      } else if (cell && cell.v && Object.prototype.toString.call(cell.v) === '[object Date]') {
+        val = cell.f || cell.v; // prefer formatted date
+      } else {
+        val = cell ? (cell.f ?? cell.v ?? '') : '';
+      }
         o[cols[i] || `col${i}`] = val;
       });
       return o;
