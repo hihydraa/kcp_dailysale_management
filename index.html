@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard ติดตามยอดขายน้ำมันรายช่องทาง KCP</title>
+  <title>Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -11,7 +11,7 @@
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
-  <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard ติดตามยอดขายน้ำมันรายช่องทาง KCP</h1>
+  <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</h1>
   <p class="text-center text-gray-600 mb-4">ดึงข้อมูลจาก Google Sheet แบบ Real‑Time (Sheet: <code>dailysale</code>)</p>
 
   <!-- Filters -->
@@ -151,11 +151,8 @@ function resetFilters(){
 }
 
 function populateFilters(){
-  const prevBranch = el.branchSelect.value;
-  const branches = [...new Set(rawData.map(r=>r.branch))].sort();
-  el.branchSelect.innerHTML = '<option value="">ทั้งหมด</option>' +
-    branches.map(b=>`<option ${b===prevBranch?'selected':''}>${b}</option>`).join('');
-}</option>`).join('');
+  const branches=[...new Set(rawData.map(r=>r.branch))];
+  el.branchSelect.innerHTML='<option value="">ทั้งหมด</option>'+branches.map(b=>`<option>${b}</option>`).join('');
 }
 
 function updateKPIs(){
@@ -194,20 +191,7 @@ function refresh(){ updateKPIs(); renderCharts(); renderTable(); }
 
 async function loadFromGViz(){ const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tq=${encodeURIComponent('select *')}`; const resp=await fetch(url); const text=await resp.text(); const json=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1)); const cols=(json.table.cols||[]).map(c=>c.label||c.id); const rows=(json.table.rows||[]).map(r=>{const o={};(r.c||[]).forEach((cell,i)=>{o[cols[i]||`col${i}`]=cell?(cell.v??''):'';});return o;}); normalizeAndSet(rows); }
 
-function normalizeAndSet(json){
-  const mapKey=k=>(k||'').toString().trim().toLowerCase();
-  rawData = json.map(r=>({
-    date: r.date||r.Date||r.วันที่||r[Object.keys(r).find(k=>mapKey(k)==='date')]||'',
-    branch: r.branch||r.Branch||r.สาขา||r[Object.keys(r).find(k=>mapKey(k)==='branch')]||'',
-    channel: r.channel||r.Channel||r.ช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel')]||'',
-    channel_type: r.channel_type||r.Channel_type||r.ประเภทช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel_type')]||'',
-    daily_target_litre: toNum(r.daily_target_litre??r.target??r.Target??r.เป้าหมาย??r['daily_target_litre']),
-    actual_litre: toNum(r.actual_litre??r.actual??r.Actual??r.ยอดขาย??r['actual_litre'])
-  }));
-  // ไม่รีเซ็ต filtered เพื่อคงค่าตัวกรองผู้ใช้
-  populateFilters();
-  applyFilters(); // จะ refresh ภายใน
-}
+function normalizeAndSet(json){ const mapKey=k=>(k||'').toString().trim().toLowerCase(); rawData=json.map(r=>({ date:r.date||r.Date||r.วันที่||r[Object.keys(r).find(k=>mapKey(k)==='date')]||'', branch:r.branch||r.Branch||r.สาขา||r[Object.keys(r).find(k=>mapKey(k)==='branch')]||'', channel:r.channel||r.Channel||r.ช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel')]||'', channel_type:r.channel_type||r.Channel_type||r.ประเภทช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel_type')]||'', daily_target_litre:toNum(r.daily_target_litre??r.target??r.Target??r.เป้าหมาย??r['daily_target_litre']), actual_litre:toNum(r.actual_litre??r.actual??r.Actual??r.ยอดขาย??r['actual_litre']) })); filtered=[...rawData]; populateFilters(); refresh(); }
 
 el.filterBtn.addEventListener('click',applyFilters);
 el.resetBtn.addEventListener('click',resetFilters);
