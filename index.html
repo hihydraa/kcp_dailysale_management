@@ -1,384 +1,202 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily Sales Dashboard (Google Sheets)</title>
-
-  <!-- TailwindCSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard ติดตามยอดขายรายช่องทาง KCP</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root{ color-scheme: dark; }
-    body { background:#0f172a; color:#E5E7EB; }
-    .card { background:#0b1223; border:1px solid rgba(255,255,255,.06); border-radius:16px; }
-    .kpi { font-variation-settings:"wght" 700; }
-    .progress-outer{ height:14px; background:#1f2937; border-radius:999px; overflow:hidden;}
-    .progress-inner{ height:100%; background:#ef4444; }
-    .small{ font-size:12px; color:#9CA3AF; }
-    .pill{ padding:.25rem .5rem; border-radius:999px; background:#111827; border:1px solid rgba(255,255,255,.08); }
-    .ghost-input{ background:#0b1223; border:1px solid rgba(255,255,255,.12); color:#E5E7EB; border-radius:.6rem; padding:.55rem .75rem;}
-    .grid-autofill{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px;}
-    a { color:#60A5FA; }
+    .badge { @apply text-xs font-semibold px-2 py-1 rounded; }
   </style>
 </head>
-<body class="min-h-screen">
-  <div class="max-w-7xl mx-auto px-4 py-6">
-    <div class="flex items-center gap-3 mb-6">
-      <h1 class="text-2xl md:text-3xl font-semibold">Daily Sales Dashboard</h1>
-      <span class="pill small">Google Sheet → dailysale</span>
-    </div>
+<body class="bg-gray-50 min-h-screen p-6">
+  <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard Dashboard ติดตามยอดขายรายช่องทาง KCP</h1>
+  <p class="text-center text-gray-600 mb-4">ดึงข้อมูลจาก Google Sheet แบบ Real-Time (Sheet: <code>dailysale</code>)</p>
 
-    <!-- Filters -->
-    <div class="card p-4 mb-6">
-      <div class="grid md:grid-cols-5 gap-4 items-end">
-        <div>
-          <label class="block small mb-1">ตั้งแต่วันที่ (mm/dd/yyyy)</label>
-          <input id="fromDate" class="ghost-input w-full" type="date" />
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-4 justify-center mb-8">
+    <div>
+      <label class="block text-sm font-medium">ตั้งแต่วันที่</label>
+      <input type="date" id="startDate" class="border rounded p-2">
+    </div>
+    <div>
+      <label class="block text-sm font-medium">ถึงวันที่</label>
+      <input type="date" id="endDate" class="border rounded p-2">
+    </div>
+    <div>
+      <label class="block text-sm font-medium">สาขา (Branch)</label>
+      <select id="branchSelect" class="border rounded p-2 min-w-[160px]"><option value="">ทั้งหมด</option></select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium">ประเภทช่องทาง (Channel Type)</label>
+      <select id="typeSelect" class="border rounded p-2 min-w-[160px]"><option value="">ทั้งหมด</option><option>Front</option><option>MT</option><option>TR</option><option>Back</option><option>CH</option></select>
+    </div>
+    <button id="filterBtn" class="bg-indigo-600 text-white px-4 py-2 rounded">กรองข้อมูล</button>
+    <button id="resetBtn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded">ล้างตัวกรอง</button>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white shadow rounded p-4 text-center">
+      <h3 class="text-sm text-gray-500">ยอดขายรวม (Actual)</h3>
+      <p id="kpiActual" class="text-2xl font-bold">-</p>
+    </div>
+    <div class="bg-white shadow rounded p-4 text-center">
+      <h3 class="text-sm text-gray-500">เป้าหมายรวม (Target)</h3>
+      <p id="kpiTarget" class="text-2xl font-bold">-</p>
+    </div>
+    <div class="bg-white shadow rounded p-4 text-center">
+      <h3 class="text-sm text-gray-500">% Achievement</h3>
+      <p id="kpiAch" class="text-2xl font-bold">-</p>
+      <div class="mt-2">
+        <div class="h-2 bg-gray-200 rounded">
+          <div id="kpiAchBar" class="h-2 rounded" style="width:0%"></div>
         </div>
-        <div>
-          <label class="block small mb-1">ถึงวันที่ (mm/dd/yyyy)</label>
-          <input id="toDate" class="ghost-input w-full" type="date" />
-        </div>
-        <div class="md:col-span-2">
-          <label class="block small mb-1">สาขา (Branch)</label>
-          <select id="branchSelect" class="ghost-input w-full">
-            <option value="__all__">All</option>
-          </select>
-        </div>
-        <div class="flex gap-3">
-          <button id="applyBtn" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500">Apply</button>
-          <button id="resetBtn" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600">Reset</button>
-        </div>
       </div>
     </div>
-
-    <!-- KPI Cards -->
-    <div class="grid-autofill mb-6">
-      <div class="card p-5">
-        <div class="small mb-1">Total Target</div>
-        <div id="kpiTarget" class="text-3xl kpi">-</div>
-      </div>
-      <div class="card p-5">
-        <div class="small mb-1">Total Actual</div>
-        <div id="kpiActual" class="text-3xl kpi">-</div>
-      </div>
-      <div class="card p-5">
-        <div class="small mb-1">Achievement</div>
-        <div id="kpiAch" class="text-3xl kpi">-</div>
-      </div>
-      <div class="card p-5">
-        <div class="small mb-1">Records</div>
-        <div id="kpiRecords" class="text-3xl kpi">-</div>
-      </div>
-    </div>
-
-    <!-- Visual summary per branch -->
-    <div class="card p-5 mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-semibold">การบรรลุเป้าหมายรายสาขา (Visual Summary)</h2>
-        <span id="legend" class="small">แถบ = Actual / Target</span>
-      </div>
-      <div id="branchBars" class="space-y-4"></div>
-    </div>
-
-    <!-- Charts row -->
-    <div class="grid md:grid-cols-2 gap-6 mb-10">
-      <div class="card p-5">
-        <h3 class="text-lg font-semibold mb-3">สรุปภาพรวม (Overall KPI)</h3>
-        <canvas id="overallChart" height="160"></canvas>
-      </div>
-      <div class="card p-5">
-        <h3 class="text-lg font-semibold mb-3">Achievement ตามประเภทช่องทาง (Channel Type KPI)</h3>
-        <canvas id="channelTypeChart" height="160"></canvas>
-      </div>
-    </div>
-
-    <!-- Channel breakdown -->
-    <div class="card p-5">
-      <h3 class="text-lg font-semibold mb-3">Achievement แยกตามช่องทาง (Channel Breakdown)</h3>
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead>
-            <tr class="text-left border-b border-white/10">
-              <th class="py-2 pr-4">Channel</th>
-              <th class="py-2 pr-4">Target</th>
-              <th class="py-2 pr-4">Actual</th>
-              <th class="py-2 pr-4">Achievement %</th>
-              <th class="py-2">Records</th>
-            </tr>
-          </thead>
-          <tbody id="channelBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="small mt-6 opacity-70">
-      แหล่งข้อมูล: Google Sheets – 
-      <a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M/edit?gid=0#gid=0">เปิดดูชีต</a>
+    <div class="bg-white shadow rounded p-4 text-center">
+      <h3 class="text-sm text-gray-500">สาขา/ช่องทางต่ำกว่า 70%</h3>
+      <p id="kpiBelow" class="text-2xl font-bold text-red-600">-</p>
+      <p id="branchBelow" class="text-xs text-gray-600 mt-2">(ไม่มีข้อมูล)</p>
     </div>
   </div>
 
-  <script>
-    // ========= CONFIG =========
-    const SHEET_ID = "11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M";
-    const SHEET_NAME = "dailysale"; // sheet tab
-    // จับคู่ชื่อคอลัมน์ที่เป็นไปได้ (เพิ่ม/แก้ได้)
-    const POSSIBLE_COL_NAMES = {
-      date: ["date","วันที่","docdate","transdate"],
-      branch: ["branch","สาขา"],
-      channel: ["channel type","channel","ประเภทช่องทาง"],
-      target: ["target","ยอดเป้า","plan","goal"],
-      actual: ["actual","ยอดจริง","sale","sales","revenue"]
-    };
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white shadow rounded p-4">
+      <h3 class="font-semibold mb-2">การบรรลุเป้าหมายรายสาขา (%Ach)</h3>
+      <canvas id="branchChart" height="140"></canvas>
+    </div>
+    <div class="bg-white shadow rounded p-4">
+      <h3 class="font-semibold mb-2">Achievement เฉลี่ยตามประเภทช่องทาง (%Ach)</h3>
+      <canvas id="typeChart" height="140"></canvas>
+    </div>
+  </div>
 
-    // ========= UTIL =========
-    const fmt = new Intl.NumberFormat("en-US",{maximumFractionDigits:2});
-    const pct = (n)=> (isFinite(n)? (n*100).toFixed(1)+"%":"-");
-    const keyOf = (obj)=> Object.keys(obj);
+  <!-- Trend -->
+  <div class="bg-white shadow rounded p-4 mt-6">
+    <h3 class="font-semibold mb-2">แนวโน้มรายวัน (Actual vs Target)</h3>
+    <canvas id="trendChart" height="120"></canvas>
+  </div>
 
-    function parseGViz(text){
-      // gviz returns: google.visualization.Query.setResponse({...});
-      const json = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}")+1));
-      return json.table;
-    }
+  <!-- Table -->
+  <div class="bg-white shadow rounded p-4 mt-6 overflow-x-auto">
+    <h3 class="font-semibold mb-3 text-center">Channel Breakdown</h3>
+    <table class="min-w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="border px-2 py-1">Branch</th>
+          <th class="border px-2 py-1">Channel</th>
+          <th class="border px-2 py-1">Type</th>
+          <th class="border px-2 py-1 text-right">Target (L)</th>
+          <th class="border px-2 py-1 text-right">Actual (L)</th>
+          <th class="border px-2 py-1 text-right">%</th>
+          <th class="border px-2 py-1">สถานะ</th>
+        </tr>
+      </thead>
+      <tbody id="tblBody"></tbody>
+    </table>
+  </div>
 
-    function guessColumns(cols){
-      const idx = {};
-      const find = (wantList)=>{
-        wantList = wantList.map(s=>s.toLowerCase());
-        let hit = -1;
-        cols.forEach((c,i)=>{
-          const name = (c.label||c.id||"").toLowerCase().trim();
-          if (wantList.some(w => name.includes(w)) && hit === -1) hit = i;
-        });
-        return hit;
-      };
-      idx.date   = find(POSSIBLE_COL_NAMES.date);
-      idx.branch = find(POSSIBLE_COL_NAMES.branch);
-      idx.channel= find(POSSIBLE_COL_NAMES.channel);
-      idx.target = find(POSSIBLE_COL_NAMES.target);
-      idx.actual = find(POSSIBLE_COL_NAMES.actual);
-      return idx;
-    }
+<script>
+const SHEET_ID = '11wQBNB5fuIE-ySyYtjjrc5-YDpyWq82zCCVRe_2PB_M';
+const SHEET_NAME = 'dailysale';
 
-    function parseDateCell(v){
-      if (!v) return null;
-      if (v instanceof Date) return v;
-      if (typeof v === "string" && /^Date\(\d+,\d+,\d+/.test(v)){
-        const m = v.match(/Date\((\d+),(\d+),(\d+)/);
-        if (m) return new Date(+m[1], +m[2], +m[3]);
-      }
-      const d = new Date(v);
-      return isNaN(+d)? null : d;
-    }
+let rawData = [];
+let filtered = [];
+let charts = {};
 
-    function groupBy(arr, keyFn){
-      const m = new Map();
-      arr.forEach(o=>{
-        const k = keyFn(o);
-        if(!m.has(k)) m.set(k, []);
-        m.get(k).push(o);
-      });
-      return m;
-    }
+const el = {
+  startDate: document.getElementById('startDate'),
+  endDate: document.getElementById('endDate'),
+  branchSelect: document.getElementById('branchSelect'),
+  typeSelect: document.getElementById('typeSelect'),
+  filterBtn: document.getElementById('filterBtn'),
+  resetBtn: document.getElementById('resetBtn'),
+  kpiTarget: document.getElementById('kpiTarget'),
+  kpiActual: document.getElementById('kpiActual'),
+  kpiAch: document.getElementById('kpiAch'),
+  kpiAchBar: document.getElementById('kpiAchBar'),
+  kpiBelow: document.getElementById('kpiBelow'),
+  branchBelow: document.getElementById('branchBelow'),
+  tblBody: document.getElementById('tblBody')
+};
 
-    function sum(arr, fn){ return arr.reduce((a,b)=>a+(+fn(b)||0),0); }
+const toNum = v => isNaN(+v)?0:+v;
+const fmt = n => (n||0).toLocaleString();
+const pct = (a,t)=>t?(a/t*100):0;
 
-    // ========= LOAD =========
-    async function loadSheet(){
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tqx=out:json`;
-      const res = await fetch(url);
-      const text = await res.text();
-      const table = parseGViz(text);
+function barColor(p){ if(p<70)return'bg-red-500'; if(p<90)return'bg-yellow-500'; return'bg-green-500'; }
+function progressBar(p){ const capped=Math.max(0,Math.min(120,p)); return `<div class='relative' style='width:160px'><div class='h-2 bg-gray-200 rounded'><div class='h-2 ${barColor(p)} rounded' style='width:${Math.min(capped,100)}%'></div></div><div class='absolute top-1/2 -translate-y-1/2' style='left:100%'><div class='w-0.5 h-3 bg-gray-700'></div></div><div class='text-xs text-gray-600 mt-1'>${p.toFixed(1)}%</div></div>`; }
 
-      const colIdx = guessColumns(table.cols);
-      const rows = table.rows.map(r=>{
-        const c = r.c;
-        return {
-          date  : parseDateCell(c[colIdx.date]?.v),
-          branch: (c[colIdx.branch]?.v ?? "").toString().trim(),
-          channel: (c[colIdx.channel]?.v ?? "").toString().trim(),
-          target: +((c[colIdx.target]?.v ?? 0) || 0),
-          actual: +((c[colIdx.actual]?.v ?? 0) || 0),
-          _raw: r
-        };
-      }).filter(x => x.date); // keep only valid dates
+function kpiColor(p){ if(p<70)return'bg-red-500'; if(p<90)return'bg-yellow-500'; return'bg-green-500'; }
 
-      return rows;
-    }
+function aggBy(keys){ const map=new Map(); for(const r of filtered){ const k=keys.map(k=>r[k]).join('|'); if(!map.has(k)) map.set(k,{...keys.reduce((o,k)=>(o[k]=r[k],o),{}),target:0,actual:0}); const o=map.get(k); o.target+=toNum(r.daily_target_litre); o.actual+=toNum(r.actual_litre);} return [...map.values()]; }
 
-    // ========= STATE =========
-    let RAW = [];
-    let overallChart, channelTypeChart;
+function applyFilters(){
+  const s=el.startDate.value, e=el.endDate.value, b=el.branchSelect.value, t=el.typeSelect.value;
+  filtered=rawData.filter(r=>{
+    const okS=s?(new Date(r.date)>=new Date(s)):true;
+    const okE=e?(new Date(r.date)<=new Date(e)):true;
+    const okB=b?r.branch===b:true;
+    const okT=t?r.channel_type===t:true;
+    return okS&&okE&&okB&&okT;
+  });
+  refresh();
+}
 
-    function applyFilters(){
-      const f = document.getElementById("fromDate").value;
-      const t = document.getElementById("toDate").value;
-      const b = document.getElementById("branchSelect").value;
+function resetFilters(){
+  el.startDate.value=''; el.endDate.value=''; el.branchSelect.value=''; el.typeSelect.value=''; filtered=[...rawData]; refresh();
+}
 
-      let data = RAW.slice();
+function populateFilters(){
+  const branches=[...new Set(rawData.map(r=>r.branch))];
+  el.branchSelect.innerHTML='<option value="">ทั้งหมด</option>'+branches.map(b=>`<option>${b}</option>`).join('');
+}
 
-      if (f){
-        const fd = new Date(f+"T00:00:00");
-        data = data.filter(x=> x.date >= fd);
-      }
-      if (t){
-        const td = new Date(t+"T23:59:59");
-        data = data.filter(x=> x.date <= td);
-      }
-      if (b && b !== "__all__"){
-        data = data.filter(x=> x.branch === b);
-      }
+function updateKPIs(){
+  const totalTarget=filtered.reduce((a,r)=>a+toNum(r.daily_target_litre),0);
+  const totalActual=filtered.reduce((a,r)=>a+toNum(r.actual_litre),0);
+  const ach=pct(totalActual,totalTarget);
+  el.kpiTarget.textContent=fmt(totalTarget);
+  el.kpiActual.textContent=fmt(totalActual);
+  el.kpiAch.textContent=`${ach.toFixed(1)}%`;
+  el.kpiAchBar.className=`h-2 rounded ${kpiColor(ach)}`;
+  el.kpiAchBar.style.width=`${Math.min(ach,100)}%`;
 
-      renderAll(data);
-    }
+  const byChannel=aggBy(['branch','channel','channel_type']);
+  const below=byChannel.filter(x=>pct(x.actual,x.target)<70);
+  el.kpiBelow.textContent=below.length;
+  const branchesBelow=[...new Set(below.map(x=>x.branch))];
+  el.branchBelow.textContent=branchesBelow.length?branchesBelow.join(', '):'(ทุกสาขาเกิน 70%)';
+}
 
-    function resetFilters(){
-      document.getElementById("fromDate").value = "";
-      document.getElementById("toDate").value = "";
-      document.getElementById("branchSelect").value = "__all__";
-      renderAll(RAW);
-    }
+function renderCharts(){ for(const k in charts){ charts[k].destroy(); } charts={};
+  const byBranch=aggBy(['branch']);
+  const labelsB=byBranch.map(x=>x.branch);
+  const dataB=byBranch.map(x=>+(pct(x.actual,x.target).toFixed(1)));
+  charts.branch=new Chart(document.getElementById('branchChart').getContext('2d'),{type:'bar',data:{labels:labelsB,datasets:[{label:'% Achievement',data:dataB}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}});
+  const byType=aggBy(['channel_type']).map(x=>({type:x.channel_type,p:pct(x.actual,x.target)}));
+  const labelsT=byType.map(x=>x.type);
+  const dataT=byType.map(x=>+(x.p.toFixed(1)));
+  charts.type=new Chart(document.getElementById('typeChart').getContext('2d'),{type:'bar',data:{labels:labelsT,datasets:[{label:'% Achievement',data:dataT}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}});
+  const byDate=(()=>{const m=new Map();for(const r of filtered){const k=r.date||'';if(!m.has(k))m.set(k,{date:k,target:0,actual:0});const o=m.get(k);o.target+=toNum(r.daily_target_litre);o.actual+=toNum(r.actual_litre);}return[...m.values()].sort((a,b)=>new Date(a.date)-new Date(b.date));})();
+  charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'line',data:{labels:byDate.map(x=>x.date),datasets:[{label:'Target',data:byDate.map(x=>x.target)},{label:'Actual',data:byDate.map(x=>x.actual)}]},options:{responsive:true}});
+}
 
-    // ========= RENDER =========
-    function renderKPIs(data){
-      const tgt = sum(data, d=>d.target);
-      const act = sum(data, d=>d.actual);
-      const ach = tgt ? (act/tgt) : 0;
-      document.getElementById("kpiTarget").textContent = fmt.format(tgt);
-      document.getElementById("kpiActual").textContent = fmt.format(act);
-      document.getElementById("kpiAch").textContent    = pct(ach);
-      document.getElementById("kpiRecords").textContent= fmt.format(data.length);
-    }
+function renderTable(){ const tb=el.tblBody; tb.innerHTML=''; const rows=aggBy(['branch','channel','channel_type']).sort((a,b)=>(a.branch+a.channel).localeCompare(b.branch+b.channel)); for(const r of rows){ const p=pct(r.actual,r.target); const tr=document.createElement('tr'); tr.innerHTML=`<td class='border px-2 py-1'>${r.branch}</td><td class='border px-2 py-1'>${r.channel}</td><td class='border px-2 py-1'>${r.channel_type||''}</td><td class='border px-2 py-1 text-right'>${fmt(r.target)}</td><td class='border px-2 py-1 text-right'>${fmt(r.actual)}</td><td class='border px-2 py-1 text-right'>${p.toFixed(1)}%</td><td class='border px-2 py-1'>${progressBar(p)}</td>`; tb.appendChild(tr);} }
 
-    function renderBranchBars(data){
-      const wrap = document.getElementById("branchBars");
-      wrap.innerHTML = "";
-      const byB = groupBy(data, d=>d.branch);
-      [...byB.entries()].sort((a,b)=> a[0].localeCompare(b[0])).forEach(([branch, arr])=>{
-        const tgt = sum(arr, d=>d.target);
-        const act = sum(arr, d=>d.actual);
-        const ratio = tgt ? Math.min(act/tgt, 1) : 0;
-        const row = document.createElement("div");
-        row.innerHTML = `
-          <div class="flex items-center justify-between mb-1">
-            <div class="font-medium">${branch || "-"}</div>
-            <div class="small">${fmt.format(act)} / ${fmt.format(tgt)} • ${pct(tgt?act/tgt:0)}</div>
-          </div>
-          <div class="progress-outer"><div class="progress-inner" style="width:${ratio*100}%"></div></div>
-        `;
-        wrap.appendChild(row);
-      });
-    }
+function refresh(){ updateKPIs(); renderCharts(); renderTable(); }
 
-    function upsertChart(canvasId, cfg, currentRef){
-      const ctx = document.getElementById(canvasId);
-      if (currentRef) currentRef.destroy();
-      return new Chart(ctx, cfg);
-    }
+async function loadFromGViz(){ const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tq=${encodeURIComponent('select *')}`; const resp=await fetch(url); const text=await resp.text(); const json=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1)); const cols=(json.table.cols||[]).map(c=>c.label||c.id); const rows=(json.table.rows||[]).map(r=>{const o={};(r.c||[]).forEach((cell,i)=>{o[cols[i]||`col${i}`]=cell?(cell.v??''):'';});return o;}); normalizeAndSet(rows); }
 
-    function renderOverallChart(data){
-      const tgt = sum(data, d=>d.target);
-      const act = sum(data, d=>d.actual);
-      const ach = tgt? (act/tgt*100) : 0;
+function normalizeAndSet(json){ const mapKey=k=>(k||'').toString().trim().toLowerCase(); rawData=json.map(r=>({ date:r.date||r.Date||r.วันที่||r[Object.keys(r).find(k=>mapKey(k)==='date')]||'', branch:r.branch||r.Branch||r.สาขา||r[Object.keys(r).find(k=>mapKey(k)==='branch')]||'', channel:r.channel||r.Channel||r.ช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel')]||'', channel_type:r.channel_type||r.Channel_type||r.ประเภทช่องทาง||r[Object.keys(r).find(k=>mapKey(k)==='channel_type')]||'', daily_target_litre:toNum(r.daily_target_litre??r.target??r.Target??r.เป้าหมาย??r['daily_target_litre']), actual_litre:toNum(r.actual_litre??r.actual??r.Actual??r.ยอดขาย??r['actual_litre']) })); filtered=[...rawData]; populateFilters(); refresh(); }
 
-      const cfg = {
-        type: "bar",
-        data: {
-          labels: ["Target","Actual","Achievement %"],
-          datasets: [{
-            label: "Overall",
-            data: [tgt, act, ach],
-          }]
-        },
-        options:{
-          responsive:true,
-          plugins:{ legend:{display:false}},
-          scales:{
-            y:{ beginAtZero:true }
-          }
-        }
-      };
-      overallChart = upsertChart("overallChart", cfg, overallChart);
-    }
+el.filterBtn.addEventListener('click',applyFilters);
+el.resetBtn.addEventListener('click',resetFilters);
 
-    function renderChannelTypeChart(data){
-      const byC = groupBy(data, d=> d.channel || "-");
-      const labels = [];
-      const achs = [];
-      [...byC.entries()].forEach(([ch, arr])=>{
-        const tgt = sum(arr,d=>d.target);
-        const act = sum(arr,d=>d.actual);
-        labels.push(ch);
-        achs.push( tgt ? act/tgt*100 : 0 );
-      });
-
-      const cfg = {
-        type:"bar",
-        data:{ labels, datasets:[{ label:"Achievement %", data:achs }]},
-        options:{
-          responsive:true,
-          plugins:{ legend:{display:false}},
-          scales:{
-            y:{ beginAtZero:true, ticks:{ callback:(v)=> v+"%"}}
-          }
-        }
-      };
-      channelTypeChart = upsertChart("channelTypeChart", cfg, channelTypeChart);
-    }
-
-    function renderChannelBreakdown(data){
-      const body = document.getElementById("channelBody");
-      body.innerHTML = "";
-      const byC = groupBy(data, d=> d.channel || "-");
-      const rows = [...byC.entries()].map(([ch, arr])=>{
-        const tgt = sum(arr,d=>d.target);
-        const act = sum(arr,d=>d.actual);
-        const ach = tgt ? (act/tgt) : 0;
-        return { ch, tgt, act, ach, n: arr.length };
-      }).sort((a,b)=> a.ch.localeCompare(b.ch));
-
-      rows.forEach(r=>{
-        const tr = document.createElement("tr");
-        tr.className = "border-b border-white/5";
-        tr.innerHTML = `
-          <td class="py-2 pr-4">${r.ch}</td>
-          <td class="py-2 pr-4">${fmt.format(r.tgt)}</td>
-          <td class="py-2 pr-4">${fmt.format(r.act)}</td>
-          <td class="py-2 pr-4">${pct(r.ach)}</td>
-          <td class="py-2">${r.n}</td>
-        `;
-        body.appendChild(tr);
-      });
-    }
-
-    function renderBranchOptions(){
-      const sel = document.getElementById("branchSelect");
-      const branches = [...new Set(RAW.map(x=>x.branch))].filter(Boolean).sort();
-      sel.innerHTML = `<option value="__all__">All</option>` + 
-        branches.map(b=> `<option value="${b}">${b}</option>`).join("");
-    }
-
-    function renderAll(data){
-      renderKPIs(data);
-      renderBranchBars(data);
-      renderOverallChart(data);
-      renderChannelTypeChart(data);
-      renderChannelBreakdown(data);
-    }
-
-    // ========= INIT =========
-    (async function init(){
-      RAW = await loadSheet();
-      renderBranchOptions();
-      renderAll(RAW);
-
-      document.getElementById("applyBtn").addEventListener("click", applyFilters);
-      document.getElementById("resetBtn").addEventListener("click", resetFilters);
-    })();
-  </script>
+(async function init(){ await loadFromGViz(); setInterval(loadFromGViz,15000); })();
+</script>
 </body>
 </html>
