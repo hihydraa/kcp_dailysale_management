@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</title>
+  <title>Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real-Time)</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -11,8 +11,8 @@
   <!-- ALERT AREA -->
   <div id="alert" class="hidden mb-4 p-3 rounded border bg-red-50 text-red-700 border-red-200"></div>
 
-  <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real‑Time)</h1>
-  <p class="text-center text-gray-600 mb-4">ดึงข้อมูลจาก Google Sheet แบบ Real‑Time (Sheet: <code>dailysale</code>)</p>
+  <h1 class="text-2xl font-bold text-center mb-4">📊 Dashboard ติดตามยอดขายน้ำมันเชื้อเพลิง (Real-Time)</h1>
+  <p class="text-center text-gray-600 mb-4">ดึงข้อมูลจาก Google Sheet แบบ Real-Time (Sheet: <code>dailysale</code>)</p>
 
   <!-- Filters -->
   <div class="flex flex-wrap gap-4 justify-center mb-8">
@@ -26,11 +26,20 @@
     </div>
     <div>
       <label class="block text-sm font-medium">สาขา (Branch)</label>
-      <select id="branchSelect" class="border rounded p-2 min-w-[160px]"><option value="">ทั้งหมด</option></select>
+      <select id="branchSelect" class="border rounded p-2 min-w-[160px]">
+        <option value="">ทั้งหมด</option>
+      </select>
     </div>
     <div>
       <label class="block text-sm font-medium">ประเภทช่องทาง (Channel Type)</label>
-      <select id="typeSelect" class="border rounded p-2 min-w-[160px]"><option value="">ทั้งหมด</option><option>Front</option><option>MT</option><option>TR</option><option>Back</option><option>CH</option></select>
+      <select id="typeSelect" class="border rounded p-2 min-w-[160px]">
+        <option value="">ทั้งหมด</option>
+        <option>Front</option>
+        <option>MT</option>
+        <option>TR</option>
+        <option>Back</option>
+        <option>CH</option>
+      </select>
     </div>
     <button id="filterBtn" class="bg-indigo-600 text-white px-4 py-2 rounded">กรองข้อมูล</button>
     <button id="resetBtn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded">ล้างตัวกรอง</button>
@@ -91,7 +100,7 @@
           <th class="border px-2 py-1">Type</th>
           <th class="border px-2 py-1 text-right">Target (L)</th>
           <th class="border px-2 py-1 text-right">Actual (L)</th>
-          <th class="border px-2 py-1 text-right">%</th>
+          <th class="border px-2 py-1 text-right">%</</th>
           <th class="border px-2 py-1">สถานะ</th>
         </tr>
       </thead>
@@ -145,12 +154,12 @@ function formatDateLabel(dStr){
   const d = new Date(dStr);
   if(isNaN(d)) return dStr;
   const day = String(d.getDate()).padStart(2,'0');
-  const month = d.toLocaleString('en-US', { month: 'long' }); // change to 'th-TH' for Thai
+  const month = d.toLocaleString('en-US', { month: 'long' }); // เปลี่ยนเป็น 'th-TH' ได้ถ้าต้องการชื่อเดือนภาษาไทย
   return `${day}/${month}`;
 }
 
 function progressBar(p){
-  const capped=Math.max(0,Math.min(120,p));
+  const capped = Math.max(0, Math.min(120, p));
   return `
     <div class='relative' style='width:160px'>
       <div class='h-2 bg-gray-200 rounded'>
@@ -167,7 +176,7 @@ function aggBy(keys){
   const map=new Map();
   for(const r of filtered){
     const k=keys.map(k=>r[k]).join('|');
-    if(!map.has(k)) map.set(k,{...keys.reduce((o,k)=>(o[k]=r[k],o),{}),target:0,actual:0});
+    if(!map.has(k)) map.set(k,{...keys.reduce((o,k2)=>(o[k2]=r[k2],o),{}),target:0,actual:0});
     const o=map.get(k);
     o.target+=toNum(r.daily_target_litre);
     o.actual+=toNum(r.actual_litre);
@@ -188,7 +197,12 @@ function applyFilters(){
 }
 
 function resetFilters(){
-  el.startDate.value=''; el.endDate.value=''; el.branchSelect.value=''; el.typeSelect.value=''; filtered=[...rawData]; refresh();
+  el.startDate.value='';
+  el.endDate.value='';
+  el.branchSelect.value='';
+  el.typeSelect.value='';
+  filtered=[...rawData];
+  refresh();
 }
 
 function populateFilters(){
@@ -213,7 +227,6 @@ function updateKPIs(){
   el.kpiBelow.textContent=below.length;
   const branchesBelow=[...new Set(below.map(x=>x.branch))];
   if(branchesBelow.length){
-    // แสดง % รวมของแต่ละสาขาด้วย
     const byBranch = aggBy(['branch']);
     const map = new Map(byBranch.map(x=>[x.branch, (pct(x.actual,x.target)||0)]));
     el.branchBelow.textContent = branchesBelow.map(b=>`${b} (${(map.get(b)||0).toFixed(1)}%)`).join(', ');
@@ -222,25 +235,94 @@ function updateKPIs(){
   }
 }
 
-function renderCharts(){ for(const k in charts){ charts[k].destroy(); } charts={};
+function renderCharts(){
+  for(const k in charts){
+    charts[k].destroy();
+  }
+  charts={};
+
   const byBranch=aggBy(['branch']);
   const labelsB=byBranch.map(x=>x.branch);
   const dataB=byBranch.map(x=>+(pct(x.actual,x.target).toFixed(1)));
-  charts.branch=new Chart(document.getElementById('branchChart').getContext('2d'),{type:'bar',data:{labels:labelsB,datasets:[{label:'% Achievement',data:dataB}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}});
+  charts.branch=new Chart(
+    document.getElementById('branchChart').getContext('2d'),
+    {
+      type:'bar',
+      data:{labels:labelsB,datasets:[{label:'% Achievement',data:dataB}]},
+      options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}
+    }
+  );
+
   const byType=aggBy(['channel_type']).map(x=>({type:x.channel_type,p:pct(x.actual,x.target)}));
   const labelsT=byType.map(x=>x.type);
   const dataT=byType.map(x=>+(x.p.toFixed(1)));
-  charts.type=new Chart(document.getElementById('typeChart').getContext('2d'),{type:'bar',data:{labels:labelsT,datasets:[{label:'% Achievement',data:dataT}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}});
-  const byDate=(()=>{const m=new Map();for(const r of filtered){const k=r.date||'';if(!m.has(k))m.set(k,{date:k,target:0,actual:0});const o=m.get(k);o.target+=toNum(r.daily_target_litre);o.actual+=toNum(r.actual_litre);}return[...m.values()].sort((a,b)=>new Date(a.date)-new Date(b.date));})();
-  charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'line',data:{labels: byDate.map(x => formatDateLabel(x.date)),datasets:[{label:'Target',data:byDate.map(x=>x.target)},{label:'Actual',data:byDate.map(x=>x.actual)}]},options:{responsive:true}});
+  charts.type=new Chart(
+    document.getElementById('typeChart').getContext('2d'),
+    {
+      type:'bar',
+      data:{labels:labelsT,datasets:[{label:'% Achievement',data:dataT}]},
+      options:{responsive:true,scales:{y:{beginAtZero:true,max:130}}}
+    }
+  );
+
+  const byDate = (() => {
+    const m=new Map();
+    for(const r of filtered){
+      const k=r.date||'';
+      if(!m.has(k)) m.set(k,{date:k,target:0,actual:0});
+      const o=m.get(k);
+      o.target+=toNum(r.daily_target_litre);
+      o.actual+=toNum(r.actual_litre);
+    }
+    return [...m.values()].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  })();
+
+  charts.trend=new Chart(
+    document.getElementById('trendChart').getContext('2d'),
+    {
+      type:'line',
+      data:{
+        labels: byDate.map(x => formatDateLabel(x.date)),
+        datasets:[
+          {label:'Target',data:byDate.map(x=>x.target)},
+          {label:'Actual',data:byDate.map(x=>x.actual)}
+        ]
+      },
+      options:{responsive:true}
+    }
+  );
 }
 
-function renderTable(){ const tb=el.tblBody; tb.innerHTML=''; const rows=aggBy(['branch','channel','channel_type']).sort((a,b)=>(a.branch+a.channel).localeCompare(b.branch+b.channel)); for(const r of rows){ const p=pct(r.actual,r.target); const tr=document.createElement('tr'); tr.innerHTML=`<td class='border px-2 py-1'>${r.branch}</td><td class='border px-2 py-1'>${r.channel}</td><td class='border px-2 py-1'>${r.channel_type||''}</td><td class='border px-2 py-1 text-right'>${fmt(r.target)}</td><td class='border px-2 py-1 text-right'>${fmt(r.actual)}</td><td class='border px-2 py-1 text-right'>${p.toFixed(1)}%</td><td class='border px-2 py-1'>${progressBar(p)}</td>`; tb.appendChild(tr);} }
+function renderTable(){
+  const tb=el.tblBody;
+  tb.innerHTML='';
+  const rows=aggBy(['branch','channel','channel_type'])
+    .sort((a,b)=>(a.branch+a.channel).localeCompare(b.branch+b.channel));
+  for(const r of rows){
+    const p=pct(r.actual,r.target);
+    const tr=document.createElement('tr');
+    tr.innerHTML=
+      `<td class='border px-2 py-1'>${r.branch}</td>
+       <td class='border px-2 py-1'>${r.channel}</td>
+       <td class='border px-2 py-1'>${r.channel_type||''}</td>
+       <td class='border px-2 py-1 text-right'>${fmt(r.target)}</td>
+       <td class='border px-2 py-1 text-right'>${fmt(r.actual)}</td>
+       <td class='border px-2 py-1 text-right'>${p.toFixed(1)}%</td>
+       <td class='border px-2 py-1'>${progressBar(p)}</td>`;
+    tb.appendChild(tr);
+  }
+}
 
-function refresh(){ updateKPIs(); renderCharts(); renderTable(); }
+function refresh(){
+  updateKPIs();
+  renderCharts();
+  renderTable();
+}
 
-// ---- GViz Loader with error handling ----
-async function loadFromGViz(){
+// ---- GViz Loader with error handling + preserve scroll ----
+async function loadFromGViz(preserveScroll = false){
+  const currentScrollY = preserveScroll ? window.scrollY : null;
+
   try{
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tq=${encodeURIComponent('select *')}&tqx=out:json`;
     const resp = await fetch(url, { cache: 'no-store' });
@@ -255,13 +337,13 @@ async function loadFromGViz(){
       const o = {};
       (r.c || []).forEach((cell, i) => {
         let val;
-      if (cell && typeof cell.v === 'number') {
-        val = cell.v; // use raw number
-      } else if (cell && cell.v && Object.prototype.toString.call(cell.v) === '[object Date]') {
-        val = cell.f || cell.v; // prefer formatted date
-      } else {
-        val = cell ? (cell.f ?? cell.v ?? '') : '';
-      }
+        if (cell && typeof cell.v === 'number') {
+          val = cell.v; // use raw number
+        } else if (cell && cell.v && Object.prototype.toString.call(cell.v) === '[object Date]') {
+          val = cell.f || cell.v; // prefer formatted date
+        } else {
+          val = cell ? (cell.f ?? cell.v ?? '') : '';
+        }
         o[cols[i] || `col${i}`] = val;
       });
       return o;
@@ -271,6 +353,10 @@ async function loadFromGViz(){
   }catch(err){
     console.error('[GViz] load error:', err);
     showAlert(`ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: ${err.message} \nตรวจสอบว่า: 1) Sheet ID ถูกต้อง, 2) ชื่อแท็บเป็น "${SHEET_NAME}", 3) เปิดสิทธิ์เป็น Anyone with the link / Published to web`);
+  } finally {
+    if (preserveScroll && currentScrollY !== null) {
+      window.scrollTo({ top: currentScrollY, left: 0, behavior: 'auto' });
+    }
   }
 }
 
@@ -301,15 +387,28 @@ function normalizeAndSet(json){
 }
 
 // ---- Alert helpers ----
-function showAlert(msg){ const a=document.getElementById('alert'); a.textContent=msg; a.classList.remove('hidden'); }
-function hideAlert(){ const a=document.getElementById('alert'); a.classList.add('hidden'); a.textContent=''; }
+function showAlert(msg){
+  const a=document.getElementById('alert');
+  a.textContent=msg;
+  a.classList.remove('hidden');
+}
+function hideAlert(){
+  const a=document.getElementById('alert');
+  a.classList.add('hidden');
+  a.textContent='';
+}
 
 // Events
 el.filterBtn.addEventListener('click',applyFilters);
 el.resetBtn.addEventListener('click',resetFilters);
 
 // Init
-(async function init(){ await loadFromGViz(); setInterval(loadFromGViz,15000); })();
+(async function init(){
+  // ครั้งแรก โหลดปกติ (ไม่ต้อง preserve scroll)
+  await loadFromGViz(false);
+  // Auto-refresh ทุก 15 วิ โดย preserveScroll = true
+  setInterval(() => loadFromGViz(true), 15000);
+})();
 </script>
 </body>
 </html>
